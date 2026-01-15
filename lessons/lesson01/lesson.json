@@ -1,6 +1,21 @@
 {
-  "id": "lesson_01_robot_demo",
-  "title": "Lesson 1 – Robot Demo and Robot Moves",
-  "jupyter_entry": "Lesson01.ipynb",
-  "notes": "Intro to robot movement, eyes, camera, and demo shows."
+  "id": "lesson01",
+  "title": "Lesson 1 — Robot Demo",
+  "description": "Introduction to robot movement, vision, sound, and performance.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Year 7–8)",
+      "entry": "Lesson01.ipynb"
+    },
+    {
+      "id": "level_2",
+      "title": "Level 2 (Year 9–10)",
+      "entry": "Lesson01_Level2.ipynb"
+    },
+    { 
+      "id": "Demos",
+      "title": "Demos",
+      "entry": "Robot_Demo.ipynb"
+    }]
 }
