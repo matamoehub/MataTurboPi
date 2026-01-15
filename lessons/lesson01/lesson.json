@@ -1,0 +1,6 @@
+{
+  "id": "lesson_01_robot_demo",
+  "title": "Lesson 1 – Robot Demo and Robot Moves",
+  "jupyter_entry": "Lesson01.ipynb",
+  "notes": "Intro to robot movement, eyes, camera, and demo shows."
+}
