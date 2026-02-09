@@ -1,44 +1,55 @@
 # Lesson 2 — Line Following (Sensors + Moves Library)
 
 ## Goal
-Use your `moves.py` library from Lesson 1 plus line sensors to follow a line course.
+Use line sensors together with your **movement functions from Lesson 1** to follow a line.
 
-You are not rewriting movement. You are using your library and adding decision logic.
+You are not rewriting movement code.  
+You are **reusing it** and adding decision logic.
+
+## How this lesson works
+- You will work in a Jupyter notebook
+- You will import or re-run the movement function cell from Lesson 1
+- You will write a loop that:
+  - reads sensors
+  - decides what to do
+  - calls movement functions
 
 ## Coding concepts you’ll learn (by accident)
 - `while` loops
 - `if / elif / else`
-- booleans (`True` / `False`)
-- reading sensor values
-- debugging with `print()` + voice
+- booleans (`True / False`)
+- reading sensor data
+- debugging with `print()` and voice
 
 ## What you will do
-1) Import your movement library:
-- `forward()`
-- `move_left()` / `move_right()` (strafing corrections)
-- optional: turns or drift if you want style
+1) Read and `print()` line sensor values so you understand them
+2) Decide what sensor patterns mean:
+   - on the line
+   - drifting left
+   - drifting right
+   - sharp corner
+   - lost line
+3) Call your movement functions:
+   - `forward()`
+   - `move_left()` / `move_right()`
+   - optional turns or drift for style
+4) Add spoken debug messages:
+   - “left”
+   - “right”
+   - “forward”
+   - “sharp left”
+   - “lost”
 
-2) Read line sensor values and `print()` them so you understand what each sensor means.
-
-3) Write the logic:
-- If centred on the line → move forward
-- If the line is left → correct left
-- If the line is right → correct right
-- If lost → recovery behaviour (small search pattern)
-
-4) Add sharp corner cases:
-- sharp left
-- sharp right
-
-5) Use TTS to speak decisions (for debugging):
-- “left”, “right”, “forward”, “sharp left”, “lost”
+## Important rule
+Do not change your movement functions unless they are broken.
+This lesson is about **logic**, not movement.
 
 ## Success criteria
-- Robot follows the line around most of the course
+- Robot follows the line for most of the course
 - Robot handles at least one sharp corner
-- You can explain what sensor patterns mean
+- You can explain what each sensor pattern means
 
 ## Challenge ideas
-- Two modes: “safe” and “race” (a variable changes speed/behaviour)
-- Speak only when your decision changes (less noise)
-- Count laps and celebrate with beeps
+- Two modes: “safe” and “race”
+- Speak only when the decision changes
+- Count laps and celebrate with sound or speech

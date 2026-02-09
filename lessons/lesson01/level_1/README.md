@@ -1,53 +1,64 @@
 # Lesson 1 — Movement Around Cups (Build the Moves Library)
 
 ## Goal
-Build a reusable `moves.py` library, then use it to drive a robot around cups with style.
+Build a reusable **movement library** inside a Jupyter notebook, then use it to move the robot around cups with style.
 
-This `moves.py` file is used again in Lesson 2 and Lesson 3.
+The movement functions you create in this lesson will be reused in **Lesson 2** and **Lesson 3**.
+
+## How this lesson works
+- You will work in a **Jupyter notebook**
+- You will write movement functions in one cell
+- You will test and tune them in later cells
+- At the end, this notebook becomes the source of truth for your robot’s moves
 
 ## Coding concepts you’ll learn (by accident)
 - Functions
-- Variables + parameters (speed, seconds)
+- Parameters (speed, time)
 - `print()` for debugging
-- Using voice as debugging (TTS)
-- Reusing code (a library)
+- Using voice (TTS) for debugging
+- Reusing your own code
 
-## What you will do
-1) Open `moves.py`  
-2) You are GIVEN working code for:
+## What you are given
+In the notebook, you are given working examples for:
 - `forward()`
-- `move_left()` (strafe left — not spin)
-- `turn_left()` (rotate left)
-- `drift_left()` (diagonal / style move)
+- `move_left()` (strafe left, not spin)
+- `turn_left()` (rotate)
+- `drift_left()` (diagonal movement)
 
-3) You must COMPLETE the missing moves:
+Each of these:
+- prints what it is doing
+- speaks what it is doing (TTS)
+- stops safely at the end
+
+## What you must complete
+You must finish the missing movement functions:
 - `back()`
-- `move_right()` (strafe right)
-- `turn_right()` (rotate right)
+- `move_right()` (strafe)
+- `turn_right()` (rotate)
 - `drift_right()`
 
-Every move must:
-- `print()` what it is doing (eg “Moving left”)
-- speak what it is doing (TTS)
-- stop safely at the end
+All movement functions must:
+1) `print()` the action  
+2) speak the action (TTS)  
+3) stop the robot safely  
 
-4) Run `run_obstacle_course.py` and create your own cup course routine.
+## Activity — Cups obstacle course
+Using **cells in the same notebook**:
+- write a short movement sequence using your functions
+- move around cups placed on the floor
+- tune speed and timing values until it works reliably
+
+This is not meant to look boring.
 
 ## Creativity (Matamoe style)
-Going around cups is not meant to look boring.
 Add personality:
 - drift past cups
 - spins before turns
-- beeps to celebrate
-- “signature move” at the end
+- beeps or speech at milestones
+- a “signature move” at the end
 
 ## Success criteria
-- Your `moves.py` works and is reusable
-- Your obstacle routine avoids cups most of the time
-- Your robot has style (not just forward/left/forward/left)
-
-## Challenge ideas
-- Make a “dance finish” routine
-- Do the course in reverse
-- Add a beep for each cup passed
-- Make it smooth (less jerky movement)
+- All movement functions work
+- You can move around cups without touching them most of the time
+- Your movement has style, not just correctness
+- You understand that this notebook defines your robot’s moves
