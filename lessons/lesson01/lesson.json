@@ -5,17 +5,17 @@
   "levels": [
     {
       "id": "level_1",
-      "title": "Level 1 (Year 7–8)",
+      "title": "Level 1 (Beginner)",
       "entry": "Lesson01.ipynb"
     },
     {
       "id": "level_2",
-      "title": "Level 2 (Year 9–10)",
+      "title": "Level 2 (Intermediate)",
       "entry": "Lesson01_Level2.ipynb"
     },
     { 
-      "id": "Demos",
+      "id": "demos",
       "title": "Demos",
-      "entry": "Robot_Demo.ipynb"
+      "entry": "Demo.ipynb"
     }]
 }

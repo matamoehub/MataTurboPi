@@ -1,0 +1,12 @@
+{
+  "id": "lesson02",
+  "title": "Lesson 2 — Line Following",
+  "description": "Use line sensors to make decisions and follow a track. Reuse movement from Lesson 1.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Beginner)",
+      "entry": "Lesson02.ipynb"
+    }
+  ]
+}

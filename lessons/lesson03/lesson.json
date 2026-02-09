@@ -1,0 +1,12 @@
+{
+  "id": "lesson03",
+  "title": "Lesson 3 — Ball Tracking + Push to Goal",
+  "description": "Use OpenCV to detect a coloured ball, steer to align, and push it into a goal. Reuse movement from Lesson 1.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Beginner)",
+      "entry": "Lesson03.ipynb"
+    }
+  ]
+}

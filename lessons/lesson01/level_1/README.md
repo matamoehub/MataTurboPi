@@ -1,10 +1,10 @@
-# Lesson 1 – Robot Demo (Level 1)
+# Lesson 1 (Level 1) — Movement
 
-In this lesson you will:
-- Run Python code that controls a real robot
-- Make the robot move forward
-- Make the robot turn left
-- Add extra movements by copying and modifying code
+Goal: build a reusable movement library (`moves.py`) and run a fun movement show.
 
-You do NOT need to understand everything yet.
-The goal is to experiment and observe what happens.
+Students:
+- complete missing movement functions in `moves.py`
+- create a “movement performance” in `run_movement_show.py`
+
+Rule:
+- If it’s boring, add style — not more code.
