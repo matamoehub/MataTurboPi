@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-# robot_moves.py — classic moves + diagonals (wheel-level) + cmd_vel drifts + horn
+# common/lib/robot_moves.py
+# Wheel-level moves (stream_speeds) + optional /cmd_vel drift + horn
+# Python 3.10 friendly
+
+from __future__ import annotations
 
 from typing import List, Tuple, Optional
 import os, sys, time, atexit, subprocess
@@ -17,59 +21,73 @@ SIGN: List[int] = [-1, 1, -1, 1]
 BASE_SPEED: float = 300.0
 RATE_HZ:    float = 20.0
 
-def set_base_speed(speed: float):  # seconds-first API kept the same
-    global BASE_SPEED; BASE_SPEED = float(speed)
+def set_base_speed(speed: float):
+    global BASE_SPEED
+    BASE_SPEED = float(speed)
 
 def set_rate(hz: float):
-    global RATE_HZ; RATE_HZ = float(hz)
+    global RATE_HZ
+    RATE_HZ = float(hz)
 
 # ----------------------------- Utils / logging --------------------------------
-def _log(*a): print("[robot_moves]", *a, file=sys.stderr, flush=True)
+def _log(*a):
+    print("[robot_moves]", *a, file=sys.stderr, flush=True)
 
 # ----------------------------- Low-level helpers ------------------------------
 def _pairs_from4(a: float, b: float, c: float, d: float) -> List[Tuple[int, float]]:
     return [
-        (WHEEL_IDS[0], SIGN[0]*float(a)),
-        (WHEEL_IDS[1], SIGN[1]*float(b)),
-        (WHEEL_IDS[2], SIGN[2]*float(c)),
-        (WHEEL_IDS[3], SIGN[3]*float(d)),
+        (WHEEL_IDS[0], SIGN[0] * float(a)),
+        (WHEEL_IDS[1], SIGN[1] * float(b)),
+        (WHEEL_IDS[2], SIGN[2] * float(c)),
+        (WHEEL_IDS[3], SIGN[3] * float(d)),
     ]
 
 def _spam(a: float, b: float, c: float, d: float, seconds: float):
     enable_motors(True)
-    stream_speeds(_pairs_from4(a,b,c,d), seconds=seconds, rate_hz=RATE_HZ)
+    stream_speeds(_pairs_from4(a, b, c, d), seconds=seconds, rate_hz=RATE_HZ)
 
-def stop(): all_stop(WHEEL_IDS)
-def emergency_stop(): stop()
+def stop():
+    all_stop(WHEEL_IDS)
+
+def emergency_stop():
+    stop()
 
 # ------------------------------- Classic moves --------------------------------
-def forward(seconds: float = 0.5, speed: float = BASE_SPEED):
-    s = float(speed); _spam(+s, +s, +s, +s, seconds)
+def forward(seconds: float = 0.5, speed: float = None):
+    s = float(BASE_SPEED if speed is None else speed)
+    _spam(+s, +s, +s, +s, seconds)
 
-def backward(seconds: float = 0.5, speed: float = BASE_SPEED):
-    s = float(speed); _spam(-s, -s, -s, -s, seconds)
+def backward(seconds: float = 0.5, speed: float = None):
+    s = float(BASE_SPEED if speed is None else speed)
+    _spam(-s, -s, -s, -s, seconds)
 
-def turn_left(seconds: float = 0.5, speed: float = BASE_SPEED):
-    s = float(speed); _spam(-s, +s, -s, +s, seconds)
+def turn_left(seconds: float = 0.5, speed: float = None):
+    s = float(BASE_SPEED if speed is None else speed)
+    _spam(-s, +s, -s, +s, seconds)
 
-def turn_right(seconds: float = 0.5, speed: float = BASE_SPEED):
-    s = float(speed); _spam(+s, -s, +s, -s, seconds)
+def turn_right(seconds: float = 0.5, speed: float = None):
+    s = float(BASE_SPEED if speed is None else speed)
+    _spam(+s, -s, +s, -s, seconds)
 
-def left(seconds: float = 0.5, speed: float = BASE_SPEED):
-    s = float(speed); _spam(-s, +s, +s, -s, seconds)
+def left(seconds: float = 0.5, speed: float = None):
+    s = float(BASE_SPEED if speed is None else speed)
+    _spam(-s, +s, +s, -s, seconds)
 
-def right(seconds: float = 0.5, speed: float = BASE_SPEED):
-    s = float(speed); _spam(+s, -s, -s, +s, seconds)
+def right(seconds: float = 0.5, speed: float = None):
+    s = float(BASE_SPEED if speed is None else speed)
+    _spam(+s, -s, -s, +s, seconds)
 
 # --------------------------------- Diagonals ----------------------------------
-def diagonal_left(seconds: float = 0.8, speed: float = BASE_SPEED):
-    s = float(speed); _spam(+s, 0.0, 0.0, +s, seconds)   # FL + RR
+def diagonal_left(seconds: float = 0.8, speed: float = None):
+    s = float(BASE_SPEED if speed is None else speed)
+    _spam(+s, 0.0, 0.0, +s, seconds)   # FL + RR
 
-def diagonal_right(seconds: float = 0.8, speed: float = BASE_SPEED):
-    s = float(speed); _spam(0.0, +s, +s, 0.0, seconds)   # FR + RL
+def diagonal_right(seconds: float = 0.8, speed: float = None):
+    s = float(BASE_SPEED if speed is None else speed)
+    _spam(0.0, +s, +s, 0.0, seconds)   # FR + RL
 
 # ----------------------------- /cmd_vel drifting ------------------------------
-# Vendor values; tweak via env if needed.
+# NOTE: Optional. If mecanum_chassis_node isn't running/subscribed, we don't hard crash.
 _DRIFT_TOPIC    = os.environ.get("DRIFT_TOPIC", "/cmd_vel")
 _DRIFT_RATE_HZ  = float(os.environ.get("DRIFT_RATE_HZ", "20"))
 _DRIFT_GAP      = float(os.environ.get("DRIFT_GAP", "0.15"))
@@ -77,11 +95,8 @@ _DRIFT_VY_LEFT  = float(os.environ.get("DRIFT_VY_LEFT",  "-0.2"))
 _DRIFT_WZ_LEFT  = float(os.environ.get("DRIFT_WZ_LEFT",   "0.5"))
 _DRIFT_VY_RIGHT = float(os.environ.get("DRIFT_VY_RIGHT",  "0.2"))
 _DRIFT_WZ_RIGHT = float(os.environ.get("DRIFT_WZ_RIGHT", "-0.5"))
-
-# Optional forward “roll” to make the drift arc travel forward a touch
 _DRIFT_VX_BIAS  = float(os.environ.get("DRIFT_VX_BIAS", "0.0"))
 
-# ROS2 publisher (lazy)
 _rclpy_ok = False
 try:
     import rclpy as _rm_rclpy
@@ -102,7 +117,6 @@ def _ensure_cmdvel():
         return
     if not _rm_rclpy.ok():
         _rm_rclpy.init(args=None)
-    # Unique-ish node name to avoid collisions if imported twice
     nodename = f"robot_moves_cmdvel_{os.getpid()}"
     __rm_cmdvel_node = _rm_Node(nodename)
     __rm_cmdvel_pub  = __rm_cmdvel_node.create_publisher(_rm_Twist, _DRIFT_TOPIC, 10)
@@ -116,14 +130,19 @@ def _ensure_cmdvel():
             pass
     atexit.register(_zero_on_exit)
 
-def _require_subscriber():
-    subs = __rm_cmdvel_pub.get_subscription_count()
-    if subs < 1:
-        raise RuntimeError(f"No subscriber on {_DRIFT_TOPIC}. Start your base controller first.")
+def _subscriber_count() -> int:
+    if __rm_cmdvel_pub is None:
+        return 0
+    try:
+        return int(__rm_cmdvel_pub.get_subscription_count())
+    except Exception:
+        return 0
 
 def _hold_cmdvel(seconds: float, vy: float, wz: float, vx_bias: float = _DRIFT_VX_BIAS):
     _ensure_cmdvel()
-    _require_subscriber()
+    subs = _subscriber_count()
+    if subs < 1:
+        raise RuntimeError(f"No subscriber on {_DRIFT_TOPIC}. Is mecanum_chassis_node running?")
     end = time.time() + float(seconds)
     dt  = 1.0 / float(_DRIFT_RATE_HZ)
     while time.time() < end:
@@ -134,13 +153,13 @@ def _hold_cmdvel(seconds: float, vy: float, wz: float, vx_bias: float = _DRIFT_V
         __rm_cmdvel_pub.publish(msg)
         time.sleep(dt)
     __rm_cmdvel_pub.publish(_rm_Twist())
-    if _DRIFT_GAP > 0: time.sleep(_DRIFT_GAP)
+    if _DRIFT_GAP > 0:
+        time.sleep(_DRIFT_GAP)
 
-def drift_left(seconds: float = 1.2, speed: float = BASE_SPEED):
-    # speed kept for API symmetry (ignored for /cmd_vel drift)
+def drift_left(seconds: float = 1.2):
     _hold_cmdvel(seconds, vy=_DRIFT_VY_LEFT,  wz=_DRIFT_WZ_LEFT)
 
-def drift_right(seconds: float = 1.2, speed: float = BASE_SPEED):
+def drift_right(seconds: float = 1.2):
     _hold_cmdvel(seconds, vy=_DRIFT_VY_RIGHT, wz=_DRIFT_WZ_RIGHT)
 
 def drift_demo(cycles: int = 2, per_side_seconds: float = 3.0):
@@ -154,20 +173,29 @@ HORN_CMD    = os.environ.get("HORN_CMD", "mpg123")
 HORN_DEVICE = os.environ.get("HORN_DEVICE")
 HORN_DEFAULT_VOLUME = int(os.environ.get("HORN_DEFAULT_VOLUME", "22"))  # 0..100
 
-_SEARCH_DIRS = [Path.cwd(), Path(__file__).resolve().parent, Path("/opt/sounds"),
-                 Path.home()/"Music", Path.home()/"Downloads"]
+_SEARCH_DIRS = [
+    Path.cwd(),
+    Path(__file__).resolve().parent,
+    Path("/opt/sounds"),
+    Path.home() / "Music",
+    Path.home() / "Downloads",
+]
 
 def _find_horn() -> Optional[Path]:
     p = Path(HORN_FILE).expanduser()
-    if p.is_file(): return p
+    if p.is_file():
+        return p
     for d in _SEARCH_DIRS:
         q = d / HORN_FILE
-        if q.is_file(): return q
+        if q.is_file():
+            return q
     return None
 
 def _mpg123_scale_from_percent(pct: int) -> int:
-    try: p = int(pct)
-    except Exception: p = HORN_DEFAULT_VOLUME
+    try:
+        p = int(pct)
+    except Exception:
+        p = HORN_DEFAULT_VOLUME
     p = max(0, min(100, p))
     return max(1, int(round(32768 * (p / 100.0))))  # 32768 ≈ 100%
 
@@ -180,7 +208,8 @@ def horn(path: Optional[str] = None, device: Optional[str] = HORN_DEVICE,
     vol_pct = HORN_DEFAULT_VOLUME if volume is None else int(volume)
     scale = _mpg123_scale_from_percent(vol_pct)
     cmd = [HORN_CMD, "-q", "-f", str(scale)]
-    if device: cmd += ["-a", device]
+    if device:
+        cmd += ["-a", device]
     cmd.append(str(mp3))
     try:
         subprocess.run(cmd, check=True) if block else subprocess.Popen(cmd)
@@ -192,14 +221,15 @@ def horn(path: Optional[str] = None, device: Optional[str] = HORN_DEVICE,
         print("[horn] play failed:", e)
         return False
 
-def Horn(): return horn()
+def Horn():
+    return horn()
 
 # ------------------------------ Notebook-friendly class ------------------------------
 
 class RobotMoves:
     """
     Wrapper around the proven wheel-level functions in this module.
-    Keeps your existing motor calibration + stream_speeds approach.
+    Safe for student use.
     """
 
     def __init__(self, base_speed: float = BASE_SPEED, rate_hz: float = RATE_HZ):
@@ -213,58 +243,40 @@ class RobotMoves:
     def emergency_stop(self):
         emergency_stop()
 
-    # Classic moves (seconds-first, speed optional)
+    def horn(self):
+        return horn(block=True)
+
+    # Classic moves (seconds-first)
     def forward(self, seconds: float = 0.5, speed: float = None):
-        return forward(seconds, BASE_SPEED if speed is None else speed)
+        forward(seconds, speed=speed); stop()
 
     def backward(self, seconds: float = 0.5, speed: float = None):
-        return backward(seconds, BASE_SPEED if speed is None else speed)
+        backward(seconds, speed=speed); stop()
 
     def left(self, seconds: float = 0.5, speed: float = None):
-        return left(seconds, BASE_SPEED if speed is None else speed)
+        left(seconds, speed=speed); stop()
 
     def right(self, seconds: float = 0.5, speed: float = None):
-        return right(seconds, BASE_SPEED if speed is None else speed)
+        right(seconds, speed=speed); stop()
 
     def turn_left(self, seconds: float = 0.5, speed: float = None):
-        return turn_left(seconds, BASE_SPEED if speed is None else speed)
+        turn_left(seconds, speed=speed); stop()
 
     def turn_right(self, seconds: float = 0.5, speed: float = None):
-        return turn_right(seconds, BASE_SPEED if speed is None else speed)
+        turn_right(seconds, speed=speed); stop()
 
     def diagonal_left(self, seconds: float = 0.8, speed: float = None):
-        return diagonal_left(seconds, BASE_SPEED if speed is None else speed)
+        diagonal_left(seconds, speed=speed); stop()
 
     def diagonal_right(self, seconds: float = 0.8, speed: float = None):
-        return diagonal_right(seconds, BASE_SPEED if speed is None else speed)
+        diagonal_right(seconds, speed=speed); stop()
 
-    # Drift helpers
+    # Drift (optional, will throw if no subscriber)
     def drift_left(self, seconds: float = 1.2):
-        return drift_left(seconds)
+        drift_left(seconds)
 
     def drift_right(self, seconds: float = 1.2):
-        return drift_right(seconds)
+        drift_right(seconds)
 
-    # ---- Key missing method from your demo ----
-    def drive_for(self, vx: float, vy: float, seconds: float, speed: float = None):
-        """
-        Simple drive_for mapping:
-          vx: forward/back (-1..1)
-          vy: strafe left/right (-1..1)
-        Uses your wheel-level stream. Not using wz here on purpose.
-        """
-        s = float(BASE_SPEED if speed is None else speed)
-
-        # clamp
-        vx = max(-1.0, min(1.0, float(vx)))
-        vy = max(-1.0, min(1.0, float(vy)))
-
-        # mecanum-ish mix in YOUR wheel-speed space (FL,FR,RL,RR)
-        # forward: all +
-        # strafe left: FL-, FR+, RL+, RR-
-        fl = (vx - vy) * s
-        fr = (vx + vy) * s
-        rl = (vx + vy) * s
-        rr = (vx - vy) * s
-
-        _spam(fl, fr, rl, rr, seconds)
+    def drift_demo(self, cycles: int = 1, per_side_seconds: float = 2.0):
+        drift_demo(cycles=cycles, per_side_seconds=per_side_seconds)
