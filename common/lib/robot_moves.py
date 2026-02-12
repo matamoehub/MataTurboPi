@@ -156,7 +156,8 @@ HORN_DEFAULT_VOLUME = int(os.environ.get("HORN_DEFAULT_VOLUME", "22"))  # 0..100
 
 _SEARCH_DIRS = [
     Path.cwd(),
-    Path(__file__).resolve().parent,
+    Path(__file__).resolve().parent,                 # common/lib
+    Path(__file__).resolve().parent.parent / "sounds",  # common/sounds ✅
     Path("/opt/sounds"),
     Path.home() / "Music",
     Path.home() / "Downloads",
