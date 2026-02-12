@@ -1,106 +1,70 @@
-# robot_controller_api.py
-import os
+# robot_controller_api.py — low-level TurboPi motor API (ROS2 direct motor control)
 import time
-from typing import Optional
-
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
-
-from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
+
+# TurboPi / Hiwonder messages
+from ros_robot_controller_msgs.msg import MotorsSpeedControl, MotorSpeedControl
+
+TOPIC_SPEED  = "/ros_robot_controller/set_motor_speeds"
+TOPIC_ENABLE = "/ros_robot_controller/enable_reception"
+
+_node = None
+_pub_speed = None
+_pub_enable = None
 
 def _qos_rel(depth: int = 10) -> QoSProfile:
     return QoSProfile(
         reliability=QoSReliabilityPolicy.RELIABLE,
         history=QoSHistoryPolicy.KEEP_LAST,
-        depth=depth
+        depth=depth,
     )
 
-def _rclpy_init_once():
+def _ensure():
+    global _node, _pub_speed, _pub_enable
     if not rclpy.ok():
         rclpy.init(args=None)
 
-class RobotController(Node):
+    if _node is None:
+        # keep node name stable (matches what you saw in ros2 node list)
+        _node = Node("robot_controller_api")
+        _pub_speed  = _node.create_publisher(MotorsSpeedControl, TOPIC_SPEED, _qos_rel())
+        _pub_enable = _node.create_publisher(Bool, TOPIC_ENABLE, _qos_rel())
+
+def enable_motors(on: bool = True, settle_s: float = 0.05):
+    _ensure()
+    _pub_enable.publish(Bool(data=bool(on)))
+    if settle_s and settle_s > 0:
+        time.sleep(float(settle_s))
+
+def send_speeds(pairs):
     """
-    Thin ROS wrapper for:
-      - /cmd_vel (Twist)
-      - /buzzer  (Bool)
-    Notebook-safe:
-      - init once
-      - optional spin_once flush
-      - close() for cleanup
+    pairs: [(motor_id, speed), ...]
+    motor_id: 1..4 (FL, FR, RL, RR in your setup)
+    speed: float (your calibrated scale)
     """
-    def __init__(
-        self,
-        cmd_vel_topic: str = "/cmd_vel",
-        buzzer_topic: str = "/buzzer",
-        node_name: str = "robot_controller_api",
-        flush_spin: bool = False,
-        flush_sleep_s: float = 0.02,
-    ):
-        _rclpy_init_once()
+    _ensure()
+    msg = MotorsSpeedControl()
+    msg.data = [MotorSpeedControl(id=int(i), speed=float(s)) for (i, s) in pairs]
+    _pub_speed.publish(msg)
 
-        # avoid duplicate node-name collisions in notebooks
-        node_name = f"{node_name}_{os.getpid()}"
+def stream_speeds(pairs, seconds: float = 0.5, rate_hz: float = 20.0):
+    """
+    Re-publish 'pairs' for 'seconds' then stop the same motors.
+    This matches the behaviour you already know works.
+    """
+    _ensure()
+    end = time.time() + float(seconds)
+    dt = 1.0 / float(rate_hz)
+    while time.time() < end:
+        send_speeds(pairs)
+        time.sleep(dt)
 
-        super().__init__(node_name)
+    ids = [int(i) for (i, _) in pairs]
+    send_speeds([(i, 0.0) for i in ids])
 
-        self.cmd_vel_topic = cmd_vel_topic
-        self.buzzer_topic = buzzer_topic
-        self.flush_spin = bool(flush_spin)
-        self.flush_sleep_s = float(flush_sleep_s)
-
-        self._cmd_pub = self.create_publisher(Twist, self.cmd_vel_topic, _qos_rel())
-        self._buzz_pub = self.create_publisher(Bool, self.buzzer_topic, _qos_rel())
-
-    def _flush(self):
-        if self.flush_spin:
-            try:
-                rclpy.spin_once(self, timeout_sec=0.0)
-            except Exception:
-                pass
-        if self.flush_sleep_s > 0:
-            time.sleep(self.flush_sleep_s)
-
-    def publish_cmd_vel(self, linear_x: float = 0.0, linear_y: float = 0.0, angular_z: float = 0.0):
-        """
-        For mecanum:
-          linear_x = forward/back
-          linear_y = strafe left/right
-          angular_z = turn
-        """
-        msg = Twist()
-        msg.linear.x = float(linear_x)
-        msg.linear.y = float(linear_y)
-        msg.angular.z = float(angular_z)
-        self._cmd_pub.publish(msg)
-        self._flush()
-
-    def stop(self):
-        self.publish_cmd_vel(0.0, 0.0, 0.0)
-
-    def buzzer_on(self):
-        self._buzz_pub.publish(Bool(data=True))
-        self._flush()
-
-    def buzzer_off(self):
-        self._buzz_pub.publish(Bool(data=False))
-        self._flush()
-
-    def close(self):
-        try:
-            self.stop()
-        except Exception:
-            pass
-        try:
-            self.destroy_node()
-        except Exception:
-            pass
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        self.close()
-        return False
+def all_stop(ids=(1, 2, 3, 4)):
+    _ensure()
+    send_speeds([(int(i), 0.0) for i in ids])
