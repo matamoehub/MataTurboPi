@@ -1,4 +1,5 @@
 # robot_controller_api.py
+import os
 import time
 from typing import Optional
 
@@ -23,8 +24,8 @@ def _rclpy_init_once():
 class RobotController(Node):
     """
     Thin ROS wrapper for:
-      - cmd_vel
-      - buzzer (bool topic)
+      - /cmd_vel (Twist)
+      - /buzzer  (Bool)
     Notebook-safe:
       - init once
       - optional spin_once flush
@@ -39,6 +40,10 @@ class RobotController(Node):
         flush_sleep_s: float = 0.02,
     ):
         _rclpy_init_once()
+
+        # avoid duplicate node-name collisions in notebooks
+        node_name = f"{node_name}_{os.getpid()}"
+
         super().__init__(node_name)
 
         self.cmd_vel_topic = cmd_vel_topic
@@ -58,15 +63,22 @@ class RobotController(Node):
         if self.flush_sleep_s > 0:
             time.sleep(self.flush_sleep_s)
 
-    def publish_cmd_vel(self, linear_x: float, angular_z: float):
+    def publish_cmd_vel(self, linear_x: float = 0.0, linear_y: float = 0.0, angular_z: float = 0.0):
+        """
+        For mecanum:
+          linear_x = forward/back
+          linear_y = strafe left/right
+          angular_z = turn
+        """
         msg = Twist()
         msg.linear.x = float(linear_x)
+        msg.linear.y = float(linear_y)
         msg.angular.z = float(angular_z)
         self._cmd_pub.publish(msg)
         self._flush()
 
     def stop(self):
-        self.publish_cmd_vel(0.0, 0.0)
+        self.publish_cmd_vel(0.0, 0.0, 0.0)
 
     def buzzer_on(self):
         self._buzz_pub.publish(Bool(data=True))
@@ -92,4 +104,3 @@ class RobotController(Node):
     def __exit__(self, exc_type, exc, tb):
         self.close()
         return False
-
