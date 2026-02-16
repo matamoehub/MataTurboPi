@@ -20,7 +20,7 @@ import contextlib
 from typing import Optional
 
 # Allow override so it works no matter which user runs Jupyter/services
-VOICE_DIR = os.environ.get("PIPER_VOICE_DIR", os.path.expanduser("~/.local/share/piper/voices"))
+VOICE_DIR = os.environ.get("PIPER_VOICE_DIR", os.path.expanduser("/opt/robot/piper/voices"))
 
 VOICE_MAP = {
     "ryan": ("en_US-ryan-high.onnx", "en_US-ryan-high.onnx.json"),
