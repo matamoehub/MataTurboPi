@@ -14,8 +14,8 @@
       "entry": "Lesson01_Level2.ipynb"
     },
     { 
-      "id": "demos",
+      "id": "Demos",
       "title": "Demos",
-      "entry": "Demo.ipynb"
+      "entry": "Robot_Demo.ipynb"
     }]
 }
