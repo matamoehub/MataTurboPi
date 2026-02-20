@@ -1,6 +1,21 @@
-# Movement Tutorial (Year 9-10)
+# Movement Tutorial
 
 This guide explains the movement functions you use in `Lesson01_Level2.ipynb`.
+
+## Use this inside Jupyter
+
+In your notebook, run these cells:
+
+```python
+from lesson_loader import setup
+setup()
+```
+
+```python
+import student_robot_moves as srm
+```
+
+Then run the examples from this tutorial in new code cells.
 
 ## What these functions do
 

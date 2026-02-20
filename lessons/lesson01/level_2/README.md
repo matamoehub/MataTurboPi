@@ -34,8 +34,8 @@ Then return to the notebook and test your moves.
 
 ---
 
-## Student tutorial (Year 9-10)
+## Movement tutorial
 
 Use this guide while working through Level 2:
 
-- `lessons/lesson01/level_2/Movement_Tutorial_Y9_Y10.md`
+- `lessons/lesson01/level_2/Movement_Tutorial.md`
