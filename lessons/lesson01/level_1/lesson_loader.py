@@ -28,6 +28,16 @@ COMMON_MODULES = [
 ]
 
 
+def _safe_start_dir() -> Path:
+    try:
+        return Path.cwd().resolve()
+    except Exception:
+        home = os.environ.get("HOME")
+        if home and Path(home).is_dir():
+            return Path(home).resolve()
+        return Path("/tmp").resolve()
+
+
 def _find_repo_root(start: Path) -> Path:
     p = start.resolve()
     for _ in range(30):
@@ -100,10 +110,14 @@ def setup(
       - None: infer from env (ROS_DOMAIN_ID / robot vars), fallback "0"
       - int/str: explicit domain override
     """
+    start = _safe_start_dir()
+
+    # Critical: if original cwd no longer exists, force process cwd to something valid
+    # before importing modules that call Path.cwd() at import time.
     try:
-        start = Path.cwd()
-    except FileNotFoundError:
-        start = Path(os.environ.get("HOME", "/tmp"))
+        os.chdir(str(start))
+    except Exception:
+        pass
 
     root = _find_repo_root(start)
     common_lib = root / "common" / "lib"
