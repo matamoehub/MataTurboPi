@@ -21,9 +21,9 @@ def turn_left(seconds: float):
     setup()
     base.turn_left(seconds)
 
-def drift_left(seconds: float):
+def drift_left(seconds: float, turn_blend: float = 0.55):
     setup()
-    base.drift_left(seconds)
+    base.drift_left(seconds=seconds, turn_blend=turn_blend)
 
 def backward(seconds: float):
     setup()

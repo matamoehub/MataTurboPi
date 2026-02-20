@@ -27,3 +27,15 @@ These movements already work and are implemented for you.
 Your job is to complete the rest of the robot’s movement abilities.
 
 You need to open and edit this file:
+
+- `lessons/lib/student_robot_moves.py`
+
+Then return to the notebook and test your moves.
+
+---
+
+## Student tutorial (Year 9-10)
+
+Use this guide while working through Level 2:
+
+- `lessons/lesson01/level_2/Movement_Tutorial_Y9_Y10.md`
