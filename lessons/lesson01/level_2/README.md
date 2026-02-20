@@ -32,6 +32,20 @@ You need to open and edit this file:
 
 Then return to the notebook and test your moves.
 
+Provided in Level 2:
+- `forward(seconds, speed=None)`
+- `move_left(seconds, speed=None)`
+- `turn_left(seconds, speed=None)`
+
+Students implement:
+- `backward(seconds, speed=None)`
+- `move_right(seconds, speed=None)`
+- `turn_right(seconds, speed=None)`
+
+Challenge extension:
+- `drift_right(seconds, speed=None, turn_blend=...)`
+- Use pseudo steps in the movement tutorial to combine strafe-right + turn-right.
+
 ---
 
 ## Movement tutorial

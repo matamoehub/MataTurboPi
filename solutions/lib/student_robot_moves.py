@@ -13,26 +13,58 @@ def setup():
     base.set_base_speed(BASE_SPEED)
     base.set_rate(RATE_HZ)
 
-def forward(seconds: float):
+def forward(seconds: float = 0.5, speed: float = None):
     setup()
-    base.forward(seconds)
+    s = float(BASE_SPEED if speed is None else speed)
+    base._spam(+s, +s, +s, +s, seconds)
 
-def turn_left(seconds: float):
+def move_left(seconds: float = 0.5, speed: float = None):
     setup()
-    base.turn_left(seconds)
+    s = float(BASE_SPEED if speed is None else speed)
+    base._spam(-s, +s, +s, -s, seconds)
 
-def drift_left(seconds: float, turn_blend: float = 0.55):
+def turn_left(seconds: float = 0.5, speed: float = None):
     setup()
-    base.drift_left(seconds=seconds, turn_blend=turn_blend)
+    s = float(BASE_SPEED if speed is None else speed)
+    base._spam(-s, +s, -s, +s, seconds)
 
-def backward(seconds: float):
+def backward(seconds: float = 0.5, speed: float = None):
     setup()
-    base.backward(seconds)
+    s = float(BASE_SPEED if speed is None else speed)
+    base._spam(-s, -s, -s, -s, seconds)
 
-def move_right(seconds: float):
+def move_right(seconds: float = 0.5, speed: float = None):
     setup()
-    base.right(seconds)
+    s = float(BASE_SPEED if speed is None else speed)
+    base._spam(+s, -s, -s, +s, seconds)
 
-def spin_right(seconds: float):
+def turn_right(seconds: float = 0.5, speed: float = None):
     setup()
-    base.turn_right(seconds)
+    s = float(BASE_SPEED if speed is None else speed)
+    base._spam(+s, -s, +s, -s, seconds)
+
+def drift_right(seconds: float = 0.9, speed: float = None, turn_blend: float = 0.55):
+    setup()
+    s = float(BASE_SPEED if speed is None else speed)
+    k = max(0.0, min(1.0, float(turn_blend)))
+
+    # strafe-right
+    s_fl, s_fr, s_rl, s_rr = (+1.0 * s, -1.0 * s, -1.0 * s, +1.0 * s)
+    # turn-right
+    t_fl, t_fr, t_rl, t_rr = (+1.0 * s, -1.0 * s, +1.0 * s, -1.0 * s)
+
+    fl = s_fl + k * t_fl
+    fr = s_fr + k * t_fr
+    rl = s_rl + k * t_rl
+    rr = s_rr + k * t_rr
+    base._spam(fl, fr, rl, rr, seconds)
+
+# Backward compatibility aliases used by some older notebooks.
+def left(seconds: float = 0.5, speed: float = None):
+    return move_left(seconds=seconds, speed=speed)
+
+def right(seconds: float = 0.5, speed: float = None):
+    return move_right(seconds=seconds, speed=speed)
+
+def spin_right(seconds: float = 0.5, speed: float = None):
+    return turn_right(seconds=seconds, speed=speed)
