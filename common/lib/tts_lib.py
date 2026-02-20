@@ -31,6 +31,22 @@ VOICE_MAP = {
 DEFAULT_VOICE = "ryan"
 
 
+def _safe_workdir() -> str:
+    """
+    Piper CLI calls Path.cwd() internally; if notebook cwd is gone it crashes.
+    Always run subprocesses from a directory that exists.
+    """
+    try:
+        cwd = os.getcwd()
+    except Exception:
+        cwd = None
+
+    for cand in (cwd, os.environ.get("HOME"), "/tmp"):
+        if cand and os.path.isdir(cand):
+            return cand
+    return "/tmp"
+
+
 def _voice_paths(name: str):
     if name not in VOICE_MAP:
         name = DEFAULT_VOICE
@@ -81,6 +97,7 @@ def synth_to_wav(
         input=(text.strip() + "\n").encode("utf-8"),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        cwd=_safe_workdir(),
     )
 
     if proc.returncode != 0:

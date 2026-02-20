@@ -154,8 +154,19 @@ HORN_CMD = os.environ.get("HORN_CMD", "mpg123")
 HORN_DEVICE = os.environ.get("HORN_DEVICE")
 HORN_DEFAULT_VOLUME = int(os.environ.get("HORN_DEFAULT_VOLUME", "22"))  # 0..100
 
+
+def _safe_cwd_path() -> Path:
+    try:
+        p = Path.cwd()
+        if p.exists():
+            return p
+    except Exception:
+        pass
+    return Path(os.environ.get("HOME", "/tmp"))
+
+
 _SEARCH_DIRS = [
-    Path.cwd(),
+    _safe_cwd_path(),
     Path(__file__).resolve().parent,                 # common/lib
     Path(__file__).resolve().parent.parent / "sounds",  # common/sounds ✅
     Path("/opt/sounds"),
