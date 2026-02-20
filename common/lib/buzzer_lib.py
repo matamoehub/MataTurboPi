@@ -143,6 +143,12 @@ class Buzzer(Node):
         self._flush()
 
     def off(self) -> None:
+        # Some controller images are picky about zero-duration messages.
+        # Try a short explicit silent command, then a zeroed command.
+        try:
+            self._publish_buzzer(freq=0, on_time_s=0.02, off_time_s=0.0, repeat=1)
+        except Exception:
+            pass
         try:
             self._publish_buzzer(freq=0, on_time_s=0.0, off_time_s=0.0, repeat=1)
         except Exception:
@@ -172,17 +178,23 @@ class Buzzer(Node):
         Each token is NOTE:BEATS.
         """
         tokens = [t for t in str(score).split() if t.strip()]
-        for token in tokens:
-            if ":" in token:
-                n, beats_txt = token.split(":", 1)
-                beats = float(beats_txt)
-            else:
-                n, beats = token, 1.0
-            self.play_note(n, beats=beats, bpm=bpm)
+        try:
+            for token in tokens:
+                if ":" in token:
+                    n, beats_txt = token.split(":", 1)
+                    beats = float(beats_txt)
+                else:
+                    n, beats = token, 1.0
+                self.play_note(n, beats=beats, bpm=bpm)
+        finally:
+            self.off()
 
     def play_melody(self, notes: List[Tuple[str, float]], bpm: int = DEFAULT_BPM) -> None:
-        for note, beats in notes:
-            self.play_note(note, beats=float(beats), bpm=bpm)
+        try:
+            for note, beats in notes:
+                self.play_note(note, beats=float(beats), bpm=bpm)
+        finally:
+            self.off()
 
     def mario_fragment(self) -> None:
         self.play_melody(
