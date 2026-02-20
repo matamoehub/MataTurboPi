@@ -1,148 +1,113 @@
 # Movement Tutorial
 
-This guide explains the movement functions you use in `Lesson01_Level2.ipynb`.
+This tutorial explains how movement works in Level 2 using only these reference moves:
 
-## Use this inside Jupyter
-
-In your notebook, run these cells:
-
-```python
-from lesson_loader import setup
-setup()
-```
-
-```python
-import student_robot_moves as srm
-```
-
-Then run the examples from this tutorial in new code cells.
-
-## Level 2 goal
-
-In Level 2 you are building your own movement library in:
-
-- `lessons/lib/student_robot_moves.py`
-
-You keep these provided functions:
 - `forward(...)`
 - `move_left(...)`
 - `turn_left(...)`
+- `drift_left(...)`
 
-You must implement:
-- `backward(...)`
-- `move_right(...)`
-- `turn_right(...)`
+The exercise moves are **not** answered here. You will build them in `student_robot_moves.py`.
 
-Challenge extension:
-- `drift_right(..., turn_blend=...)`
+## Core idea: each wheel gets its own command
 
-## Wheel model (important)
+Your movement helper sends four wheel values in this order:
 
-Your helper uses this order:
+- `fl`: front-left wheel
+- `fr`: front-right wheel
+- `rl`: rear-left wheel
+- `rr`: rear-right wheel
 
-- `fl` = front-left wheel
-- `fr` = front-right wheel
-- `rl` = rear-left wheel
-- `rr` = rear-right wheel
-
-When using:
+Using:
 
 ```python
 base._spam(fl, fr, rl, rr, seconds)
 ```
 
-each wheel value is a speed command for that wheel.
+`seconds` is how long that wheel pattern is applied.
 
-### 1) `srm.forward(seconds)`
-- Moves the robot straight forward.
-- `seconds` means how long to move.
+Think of each wheel as pushing the robot in a specific direction.  
+By combining the four pushes, you create different motion types.
 
-Example:
+## How signs affect motion
+
+- Positive value (`+s`) means wheel spins one direction.
+- Negative value (`-s`) means wheel spins the opposite direction.
+- Bigger absolute value means stronger push.
+
+If all wheels have the same sign and magnitude, the robot moves straight.  
+If left and right sides oppose each other, the robot rotates.  
+If wheels form a criss-cross pattern, the robot strafes (slides sideways).
+
+## 1) Forward
+
+Function:
+
 ```python
-srm.forward(0.8)  # forward for 0.8 seconds
+srm.forward(seconds, speed=None)
 ```
 
-Wheel pattern:
+Pattern:
 - `fl=+s, fr=+s, rl=+s, rr=+s`
 
-### 2) `srm.move_left(seconds)`
-- Strafes left (sideways), no spin.
+What happens:
+- All four wheels push in the same movement direction.
+- Robot translates forward with no intended sideways slide or spin.
 
-Example:
+## 2) Move Left (strafe)
+
+Function:
+
 ```python
-srm.move_left(0.6)
+srm.move_left(seconds, speed=None)
 ```
 
-Wheel pattern:
+Pattern:
 - `fl=-s, fr=+s, rl=+s, rr=-s`
 
-### 3) `srm.turn_left(seconds)`
-- Rotates the robot on the spot to the left.
-- `seconds` controls how far it turns.
+What happens:
+- Front-left and rear-right oppose front-right and rear-left.
+- The wheel forces cancel most forward/backward push and produce sideways translation.
 
-Example:
+## 3) Turn Left (rotate in place)
+
+Function:
+
 ```python
-srm.turn_left(0.4)
+srm.turn_left(seconds, speed=None)
 ```
 
-Wheel pattern:
+Pattern:
 - `fl=-s, fr=+s, rl=-s, rr=+s`
 
-### 4) `srm.backward(seconds)` (you implement)
-- Moves straight backward.
+What happens:
+- Left wheels push opposite to right wheels.
+- Robot spins around its center instead of translating much.
 
-Example:
+## 4) Drift Left (curved movement)
+
+Function:
+
 ```python
-srm.backward(0.5)
+srm.drift_left(seconds, speed=None, turn_blend=0.55)
 ```
 
-Expected wheel pattern:
-- `fl=-s, fr=-s, rl=-s, rr=-s`
+How it works:
+1. Start from a strafe-left pattern.
+2. Add part of a turn-left pattern.
+3. `turn_blend` controls how much turning is mixed in.
 
-### 5) `srm.move_right(seconds)` (you implement)
-- Strafes right (sideways), not turning.
+Interpretation:
+- `turn_blend = 0.0` means mostly sideways slide.
+- Higher `turn_blend` means stronger curve.
+- Too high can turn too much instead of drifting.
 
-Example:
-```python
-srm.move_right(0.6)
-```
+## Why this matters for the exercise
 
-Expected wheel pattern:
-- `fl=+s, fr=-s, rl=-s, rr=+s`
+To create missing moves, you do not guess random numbers.  
+You reuse known patterns and mirror/combine them.
 
-### 6) `srm.turn_right(seconds)` (you implement)
-- Rotates on the spot to the right.
-
-Example:
-```python
-srm.turn_right(0.4)
-```
-
-Expected wheel pattern:
-- `fl=+s, fr=-s, rl=+s, rr=-s`
-
-### 7) `srm.drift_right(seconds, speed=None, turn_blend=0.55)` (challenge)
-- Drift right in a curve.
-- This combines:
-1. strafe-right wheel pattern
-2. turn-right wheel pattern
-
-Pseudo steps:
-1. Compute strafe-right wheel values.
-2. Compute turn-right wheel values.
-3. Clamp `turn_blend` to `0.0..1.0`.
-4. Combine each wheel with: `wheel = strafe + turn_blend * turn`.
-5. Call `base._spam(fl, fr, rl, rr, seconds)`.
-
-## Challenge task (Level 2)
-
-1. Implement the 3 TODO functions in `student_robot_moves.py`.
-2. Challenge: implement `drift_right(...)` using the pseudo steps above.
-3. Run a smoke test in notebook:
-```python
-srm.backward(0.4)
-srm.move_right(0.4)
-srm.turn_right(0.4)
-srm.drift_right(0.7, turn_blend=0.55)
-```
-4. Build a two-cup path using your functions.
+That is the main robotics skill in this level:
+- understand wheel patterns,
+- transform them,
+- test and tune with real robot behavior.
