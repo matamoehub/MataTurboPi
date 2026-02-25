@@ -25,10 +25,25 @@ VOICE_DIR = os.environ.get("PIPER_VOICE_DIR", os.path.expanduser("/opt/robot/pip
 VOICE_MAP = {
     "ryan": ("en_US-ryan-high.onnx", "en_US-ryan-high.onnx.json"),
     "amy":  ("en_GB-amy-medium.onnx", "en_GB-amy-medium.onnx.json"),
+    "aru":  ("en_GB-aru-medium.onnx", "en_GB-aru-medium.onnx.json"),
     # Add more voices you download into VOICE_DIR
 }
 
 DEFAULT_VOICE = "ryan"
+PIPER_VOICE_ENV = "PIPER_VOICE"
+
+
+def _resolve_voice(voice: Optional[str]) -> str:
+    """
+    Voice precedence:
+    1) explicit function arg
+    2) PIPER_VOICE env
+    3) DEFAULT_VOICE
+    """
+    requested = (voice or os.environ.get(PIPER_VOICE_ENV) or DEFAULT_VOICE).strip().lower()
+    if requested in VOICE_MAP:
+        return requested
+    return DEFAULT_VOICE
 
 
 def _safe_workdir() -> str:
@@ -47,9 +62,8 @@ def _safe_workdir() -> str:
     return "/tmp"
 
 
-def _voice_paths(name: str):
-    if name not in VOICE_MAP:
-        name = DEFAULT_VOICE
+def _voice_paths(name: Optional[str]):
+    name = _resolve_voice(name)
     model_file, config_file = VOICE_MAP[name]
     model = os.path.join(VOICE_DIR, model_file)
     config = os.path.join(VOICE_DIR, config_file)
@@ -70,7 +84,7 @@ def _require_aplay():
 
 def synth_to_wav(
     text: str,
-    voice: str = DEFAULT_VOICE,
+    voice: Optional[str] = None,
     length_scale: str = "1.00",
     sentence_silence: str = "0.12",
     out_path: str = "/tmp/piper_line.wav",
@@ -108,20 +122,21 @@ def synth_to_wav(
 
 def pre_synth(
     text: str,
-    voice: str = DEFAULT_VOICE,
+    voice: Optional[str] = None,
     length_scale: str = "1.00",
     sentence_silence: str = "0.10",
 ) -> str:
     """
     Cached synth: writes a deterministic wav in /tmp based on content+settings.
     """
-    key = f"{voice}|{length_scale}|{sentence_silence}|{text}".encode("utf-8")
+    voice_name = _resolve_voice(voice)
+    key = f"{voice_name}|{length_scale}|{sentence_silence}|{text}".encode("utf-8")
     h = hashlib.sha1(key).hexdigest()[:16]
     out_path = os.path.join(tempfile.gettempdir(), f"piper-{h}.wav")
     if not os.path.exists(out_path):
         synth_to_wav(
             text,
-            voice=voice,
+            voice=voice_name,
             length_scale=length_scale,
             sentence_silence=sentence_silence,
             out_path=out_path,
@@ -150,7 +165,7 @@ def play_path_async(path: str, device: Optional[str] = None):
     return play_wav_async(path, device=device)
 
 
-def warm_piper(voice: str = DEFAULT_VOICE):
+def warm_piper(voice: Optional[str] = None):
     """
     Warms piper model cache / initial startup cost.
     """
@@ -162,7 +177,7 @@ def warm_piper(voice: str = DEFAULT_VOICE):
 
 def say(
     text: str,
-    voice: str = DEFAULT_VOICE,
+    voice: Optional[str] = None,
     device: Optional[str] = None,
     length_scale: str = "1.00",
     sentence_silence: str = "0.12",
@@ -209,12 +224,12 @@ class TTSJob:
 class TTSQueue:
     def __init__(
         self,
-        default_voice: str = DEFAULT_VOICE,
+        default_voice: Optional[str] = None,
         default_length: str = "1.00",
         default_sil: str = "0.12",
         device: Optional[str] = None,
     ):
-        self.default_voice = default_voice
+        self.default_voice = _resolve_voice(default_voice)
         self.default_length = default_length
         self.default_sil = default_sil
         self.device = device
@@ -282,5 +297,5 @@ _ttsq: Optional[TTSQueue] = None
 def get_tts_queue() -> TTSQueue:
     global _ttsq
     if _ttsq is None:
-        _ttsq = TTSQueue(default_voice=DEFAULT_VOICE, default_length="0.98", default_sil="0.08", device=None)
+        _ttsq = TTSQueue(default_voice=None, default_length="0.98", default_sil="0.08", device=None)
     return _ttsq
