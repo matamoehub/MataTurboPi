@@ -15,6 +15,7 @@ except Exception:
 CANVAS_W = 900
 CANVAS_H = 620
 SCALE = 130.0
+PANEL_W = 280
 
 
 class SimApp:
@@ -33,11 +34,72 @@ class SimApp:
 
         ttk.Button(top, text="Reset Robot", command=self.reset_robot).pack(side="left")
 
-        self.canvas = tk.Canvas(frame, width=CANVAS_W, height=CANVAS_H, bg="#f4f6f8", highlightthickness=0)
-        self.canvas.pack(fill="both", expand=True, pady=(8, 0))
+        body = ttk.Frame(frame)
+        body.pack(fill="both", expand=True, pady=(8, 0))
+
+        self.canvas = tk.Canvas(body, width=CANVAS_W, height=CANVAS_H, bg="#f4f6f8", highlightthickness=0)
+        self.canvas.pack(side="left", fill="both", expand=True)
+
+        self.panel = ttk.Frame(body, width=PANEL_W, padding=(10, 8))
+        self.panel.pack(side="right", fill="y")
+        self.panel.pack_propagate(False)
+
+        self._build_side_panel()
 
         self.poll_ms = 60
         self.draw()
+
+    def _build_side_panel(self):
+        title = ttk.Label(self.panel, text="Robot Status", font=("TkDefaultFont", 12, "bold"))
+        title.pack(anchor="w", pady=(0, 8))
+
+        lights_card = ttk.LabelFrame(self.panel, text="Lights", padding=(8, 8))
+        lights_card.pack(fill="x", pady=(0, 10))
+
+        row_l = ttk.Frame(lights_card)
+        row_l.pack(fill="x", pady=(0, 6))
+        ttk.Label(row_l, text="Left").pack(side="left")
+        self.left_color_chip = tk.Canvas(row_l, width=20, height=20, highlightthickness=1, highlightbackground="#999")
+        self.left_color_chip.pack(side="right")
+
+        row_r = ttk.Frame(lights_card)
+        row_r.pack(fill="x")
+        ttk.Label(row_r, text="Right").pack(side="left")
+        self.right_color_chip = tk.Canvas(row_r, width=20, height=20, highlightthickness=1, highlightbackground="#999")
+        self.right_color_chip.pack(side="right")
+
+        self.left_rgb_label = ttk.Label(lights_card, text="Left RGB: (0, 0, 0)")
+        self.left_rgb_label.pack(anchor="w", pady=(8, 0))
+        self.right_rgb_label = ttk.Label(lights_card, text="Right RGB: (0, 0, 0)")
+        self.right_rgb_label.pack(anchor="w", pady=(2, 0))
+
+        cam_card = ttk.LabelFrame(self.panel, text="Camera Position", padding=(8, 8))
+        cam_card.pack(fill="x", pady=(0, 10))
+        self.cam_yaw_label = ttk.Label(cam_card, text="Yaw: 1500")
+        self.cam_yaw_label.pack(anchor="w")
+        self.cam_pitch_label = ttk.Label(cam_card, text="Pitch: 1500")
+        self.cam_pitch_label.pack(anchor="w", pady=(2, 0))
+        self.cam_yaw_norm_label = ttk.Label(cam_card, text="Yaw offset: +0.00")
+        self.cam_yaw_norm_label.pack(anchor="w", pady=(2, 0))
+        self.cam_pitch_norm_label = ttk.Label(cam_card, text="Pitch offset: +0.00")
+        self.cam_pitch_norm_label.pack(anchor="w", pady=(2, 0))
+        self.cam_axis_label = ttk.Label(cam_card, text="Direction: Center")
+        self.cam_axis_label.pack(anchor="w", pady=(2, 6))
+        self.cam_model = tk.Canvas(
+            cam_card,
+            width=240,
+            height=165,
+            bg="#f8fafc",
+            highlightthickness=1,
+            highlightbackground="#d2dae2",
+        )
+        self.cam_model.pack(fill="x")
+
+        sensors_card = ttk.LabelFrame(self.panel, text="Sensors (Upcoming)", padding=(8, 8))
+        sensors_card.pack(fill="x")
+        ttk.Label(sensors_card, text="Placeholder for line / distance / vision inputs").pack(anchor="w")
+        self.last_cmd_label = ttk.Label(self.panel, text="Last command: -")
+        self.last_cmd_label.pack(anchor="w", pady=(10, 0))
 
     def reset_robot(self):
         st = reset_state()
@@ -112,11 +174,97 @@ class SimApp:
         self.canvas.create_oval(ex - 7, ey - off - 7, ex + 7, ey - off + 7, fill=lc, outline="#222", tags="robot")
         self.canvas.create_oval(ex - 7, ey + off - 7, ex + 7, ey + off + 7, fill=rc, outline="#222", tags="robot")
 
+    def _rgb_to_hex(self, rgb):
+        return "#%02x%02x%02x" % (int(rgb[0]), int(rgb[1]), int(rgb[2]))
+
+    def _proj3(self, x: float, y: float, z: float, ox: float, oy: float):
+        sx = ox + x - z * 0.58
+        sy = oy - y - z * 0.36
+        return sx, sy
+
+    def _draw_camera_model(self, yaw_offset: float, pitch_offset: float, left_hex: str, right_hex: str):
+        c = self.cam_model
+        c.delete("all")
+        ox = 122.0
+        oy = 124.0
+
+        # Platform cube (pseudo-3D robot top).
+        front = [(-48, -8, 0), (48, -8, 0), (48, 20, 0), (-48, 20, 0)]
+        top = [(-48, 20, 0), (48, 20, 0), (48, 20, 22), (-48, 20, 22)]
+        side = [(48, -8, 0), (48, 20, 0), (48, 20, 22), (48, -8, 22)]
+        for poly, fill, outline in (
+            (front, "#d4b06c", "#9a7e47"),
+            (top, "#f2d292", "#9a7e47"),
+            (side, "#c99f53", "#8e703d"),
+        ):
+            pts = []
+            for x, y, z in poly:
+                sx, sy = self._proj3(x, y, z, ox, oy)
+                pts.extend([sx, sy])
+            c.create_polygon(*pts, fill=fill, outline=outline, width=1.5)
+
+        # Eyes on robot front.
+        lcx, lcy = self._proj3(-22, 10, 2, ox, oy)
+        rcx, rcy = self._proj3(22, 10, 2, ox, oy)
+        c.create_oval(lcx - 7, lcy - 7, lcx + 7, lcy + 7, fill=left_hex, outline="#2d3436")
+        c.create_oval(rcx - 7, rcy - 7, rcx + 7, rcy + 7, fill=right_hex, outline="#2d3436")
+
+        # Gimbal base.
+        bx, by = self._proj3(0, 26, 10, ox, oy)
+        c.create_oval(bx - 13, by - 9, bx + 13, by + 9, fill="#506d85", outline="#2f4152")
+
+        # Camera lens position responds to yaw/pitch.
+        lx = bx + yaw_offset * 34.0
+        ly = by + pitch_offset * 24.0
+        lens_r = 10
+        c.create_line(bx, by, lx, ly, fill="#2f3e46", width=3)
+        c.create_oval(lx - lens_r, ly - lens_r, lx + lens_r, ly + lens_r, fill="#273238", outline="#10161b")
+        c.create_oval(lx - 4, ly - 4, lx + 4, ly + 4, fill="#8ac6ff", outline="")
+
+        # Direction indicator in panel space.
+        ax0, ay0 = 198, 28
+        c.create_text(ax0, ay0 - 10, text="View Dir", fill="#546e7a", font=("TkDefaultFont", 8))
+        c.create_line(ax0, ay0, ax0 + yaw_offset * 26.0, ay0 + pitch_offset * 18.0, arrow="last", width=2, fill="#1976d2")
+
+        c.create_text(36, 148, text="Robot body", fill="#6b7280", anchor="w", font=("TkDefaultFont", 8))
+
+    def update_side_panel(self, st):
+        eyes = st.get("eyes", {})
+        left = eyes.get("left", [0, 0, 0])
+        right = eyes.get("right", [0, 0, 0])
+        left_hex = self._rgb_to_hex(left)
+        right_hex = self._rgb_to_hex(right)
+
+        self.left_color_chip.delete("all")
+        self.left_color_chip.create_rectangle(0, 0, 22, 22, fill=left_hex, outline=left_hex)
+        self.right_color_chip.delete("all")
+        self.right_color_chip.create_rectangle(0, 0, 22, 22, fill=right_hex, outline=right_hex)
+
+        self.left_rgb_label.config(text=f"Left RGB: ({int(left[0])}, {int(left[1])}, {int(left[2])})")
+        self.right_rgb_label.config(text=f"Right RGB: ({int(right[0])}, {int(right[1])}, {int(right[2])})")
+
+        cam = st.get("camera", {})
+        yaw = int(cam.get("yaw", 1500))
+        pitch = int(cam.get("pitch", 1500))
+        yaw_offset = (yaw - 1500) / 500.0
+        pitch_offset = (pitch - 1500) / 500.0
+        self.cam_yaw_label.config(text=f"Yaw: {yaw}")
+        self.cam_pitch_label.config(text=f"Pitch: {pitch}")
+        self.cam_yaw_norm_label.config(text=f"Yaw offset: {yaw_offset:+.2f}")
+        self.cam_pitch_norm_label.config(text=f"Pitch offset: {pitch_offset:+.2f}")
+        lr = "Right" if yaw_offset > 0.12 else ("Left" if yaw_offset < -0.12 else "Center")
+        ud = "Down" if pitch_offset > 0.12 else ("Up" if pitch_offset < -0.12 else "Level")
+        self.cam_axis_label.config(text=f"Direction: {lr} / {ud}")
+        self._draw_camera_model(yaw_offset, pitch_offset, left_hex, right_hex)
+
+        self.last_cmd_label.config(text=f"Last command: {st.get('last_command', '-')}")
+
     def draw(self):
         st = load_state()
         self.draw_grid()
         self.draw_trace(st.get("trace", []))
         self.draw_robot(st)
+        self.update_side_panel(st)
         robot = st["robot"]
         self.status.config(
             text=(
