@@ -286,7 +286,7 @@ class AnimationLibrary:
         self,
         duration_s: float,
         step_s: float = 0.05,
-        speed_scale: float = 0.25,
+        speed_scale: float = 0.12,
         seed: Optional[int] = None,
     ) -> List[str]:
         step = max(0.01, float(step_s))
@@ -305,8 +305,10 @@ class AnimationLibrary:
         while not self._fidget_stop.is_set():
             action = rng.choice(DEFAULT_FIDGET_MOVES)
             self.move(action, seconds=step, speed=speed)
+            # Add a tiny gap so fidget feels nervous/subtle rather than frantic.
+            self._sleep(step * 0.6)
 
-    def start_fidget(self, step_s: float = 0.05, speed_scale: float = 0.25, seed: Optional[int] = None):
+    def start_fidget(self, step_s: float = 0.05, speed_scale: float = 0.12, seed: Optional[int] = None):
         self.stop_fidget()
         self._fidget_stop.clear()
         self._fidget_thread = self.run_async(self._fidget_loop, step_s, speed_scale, seed)
@@ -334,38 +336,48 @@ class AnimationLibrary:
         return False
 
     def demo_turbo_sequence(self):
-        line = (
+        intro_line = (
             "Hi, I'm Turbo. I've been asked to talk to you. "
-            "When all I want to do is drift around corners. Sigh."
+            "When all I want to do is drift around corners."
         )
+        sigh_line = "Siiigh."
         self.set_eye_color((60, 180, 255))
         self.start_blinking(every_s=2.8, blank_s=0.5)
-        self.start_fidget(step_s=0.05, speed_scale=0.25)
+        self.start_fidget(step_s=0.05, speed_scale=0.12)
 
         try:
             if self.tts:
-                path = self.generate_phrase("turbo_intro", line)
-                dur = self.tts.wav_duration_seconds(path)
-                p = self.tts.play_path_async(path)
+                path_intro = self.generate_phrase("turbo_intro", intro_line, length_scale="1.05")
+                path_sigh = self.generate_phrase("turbo_sigh", sigh_line, length_scale="1.35", sentence_silence="0.18")
+                dur = self.tts.wav_duration_seconds(path_intro)
+                p = self.tts.play_path_async(path_intro)
             else:
                 dur = 4.0
                 p = None
+                path_sigh = None
 
             self._sleep(min(0.7, max(0.2, dur * 0.25)))
             self.look_left(amplitude=230, hold_s=0.18)
+            self._sleep(0.22)
             self.look_right(amplitude=230, hold_s=0.18)
-
-            self._sleep(min(0.9, max(0.2, dur * 0.35)))
-            self.shake(width=260, speed_s=0.16)
+            self._sleep(0.30)
 
             if p is not None:
                 p.wait()
+
+            # Pause before the sigh beat so it lands clearly.
+            self._sleep(0.35)
+            self.shake(width=260, speed_s=0.16)
+            self._sleep(0.20)
+            if self.tts and path_sigh is not None:
+                self.tts.play_path_async(path_sigh).wait()
         finally:
             self.stop_fidget()
             self.stop_blinking()
 
+        self._sleep(0.25)
         self.move("drift_left", seconds=1.0, turn_blend=0.95)
-        self._sleep(0.15)
+        self._sleep(0.35)
         self.move("drift_right", seconds=1.0, turn_blend=0.95)
 
 
