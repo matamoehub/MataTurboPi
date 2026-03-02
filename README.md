@@ -12,6 +12,7 @@ This repo contains:
 - **Shared robot libraries** (movement, vision, sound, control)
 - **Lesson templates** used by students in Jupyter
 - **Tools** for calibration and setup
+- **Simulator app** for home use without physical robots (`simulator/`)
 
 Students never edit the core libraries directly.  
 Instead, lesson templates are copied to student workspaces so everyone starts clean and can safely experiment.
@@ -85,6 +86,9 @@ common/
 
 tools/
   # Calibration and maintenance notebooks
+
+simulator/
+  # GUI simulator + compatibility shims
 
 lessons/
   lesson_01_robot_demo/

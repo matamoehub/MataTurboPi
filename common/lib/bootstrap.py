@@ -32,8 +32,21 @@ def setup_paths() -> dict:
     root = find_repo_root(start)
     common_lib = root / "common" / "lib"
     lessons_lib = root / "lessons" / "lib"
+    sim_shims = root / "simulator" / "shims"
 
-    for path in (common_lib, lessons_lib):
+    mode = str(os.environ.get("MATA_BACKEND", "")).strip().lower()
+    sim_enabled = mode == "sim" or os.environ.get("MATA_SIM", "").strip() == "1"
+
+    sim_shims_s = str(sim_shims)
+    sys.path[:] = [p for p in sys.path if p != sim_shims_s]
+
+    ordered_paths = []
+    if sim_enabled and sim_shims.is_dir():
+        ordered_paths.append(sim_shims)
+        ordered_paths.append(root)
+    ordered_paths.extend([common_lib, lessons_lib])
+
+    for path in reversed(ordered_paths):
         if str(path) not in sys.path:
             sys.path.insert(0, str(path))
 
@@ -42,6 +55,8 @@ def setup_paths() -> dict:
         "ROOT": str(root),
         "COMMON_LIB": str(common_lib),
         "LESSONS_LIB": str(lessons_lib),
+        "SIM_ENABLED": sim_enabled,
+        "SIM_SHIMS": str(sim_shims),
     }
 
 def setup_ros_env(default_domain: str = "0") -> dict:
@@ -68,6 +83,9 @@ def bootstrap(default_domain: str = "0", verbose: bool = True) -> dict:
         print("Repo root:", info["ROOT"])
         print("Using common lib:", info["COMMON_LIB"])
         print("Using lessons lib:", info["LESSONS_LIB"])
+        print("MATA_BACKEND =", "SIM" if info.get("SIM_ENABLED") else "REAL")
+        if info.get("SIM_ENABLED"):
+            print("Simulator shims:", info.get("SIM_SHIMS"))
         print("ROS_DOMAIN_ID =", info["ROS_DOMAIN_ID"])
         print("RMW_IMPLEMENTATION =", info["RMW_IMPLEMENTATION"])
         print("CYCLONEDDS_URI =", info["CYCLONEDDS_URI"])

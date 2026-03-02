@@ -8,23 +8,31 @@ Use in a notebook cell:
 
 from pathlib import Path
 import importlib
+import importlib.util
 import os
 import re
 import sys
 from typing import Dict, Optional
 
-# Common lesson modules to preload from common/lib.
 COMMON_MODULES = [
     "robot_moves",
     "eyes_lib",
     "camera_lib",
     "tts_lib",
+    "student_animation_lib",
     "sound",
     "line_sensors",
     "robot_controller_api",
     "infrared_lib",
     "line_follower_lib",
     "buzzer_lib",
+]
+
+BACKEND_MODULES = [
+    "robot_moves",
+    "eyes_lib",
+    "camera_lib",
+    "robot_controller_api",
 ]
 
 
@@ -50,7 +58,6 @@ def _find_repo_root(start: Path) -> Path:
 
 
 def _parse_domain_from_name(name: str) -> Optional[str]:
-    # Accept names like "robot-8", "turbopi08", "mata_t1_3" -> "8", "8", "3"
     m = re.search(r"(\d+)$", str(name).strip())
     if not m:
         return None
@@ -58,11 +65,6 @@ def _parse_domain_from_name(name: str) -> Optional[str]:
 
 
 def _resolve_domain(default_domain: Optional[object]) -> str:
-    # Priority:
-    # 1) explicit setup(default_domain=...)
-    # 2) ROS_DOMAIN_ID / ROBOT_DOMAIN_ID / ROBOT_NUMBER
-    # 3) parse ROBOT_NAME / ROBOT_ID / HOSTNAME suffix digits
-    # 4) fallback 0
     if default_domain is not None:
         return str(default_domain)
 
@@ -81,8 +83,38 @@ def _resolve_domain(default_domain: Optional[object]) -> str:
     return "0"
 
 
+def _resolve_backend(backend: Optional[str]) -> str:
+    if backend is not None:
+        b = str(backend).strip().lower()
+        if b in ("sim", "simulator"):
+            return "sim"
+        if b in ("real", "robot", "hardware"):
+            return "real"
+        if b not in ("", "auto", "default"):
+            raise ValueError(f"Unknown backend={backend!r}. Use 'sim' or 'real'.")
+
+    if str(os.environ.get("MATA_BACKEND", "")).strip().lower() == "sim":
+        return "sim"
+    if str(os.environ.get("MATA_SIM", "")).strip() == "1":
+        return "sim"
+    return "real"
+
+
+def _apply_backend_env(selected: str) -> None:
+    if selected == "sim":
+        os.environ["MATA_BACKEND"] = "SIM"
+        os.environ["MATA_SIM"] = "1"
+    else:
+        os.environ["MATA_BACKEND"] = "REAL"
+        os.environ.pop("MATA_SIM", None)
+
+
+def _purge_backend_modules() -> None:
+    for name in BACKEND_MODULES:
+        sys.modules.pop(name, None)
+
+
 def _expose_modules(mods: Dict[str, object]) -> None:
-    # Expose modules into the caller notebook global scope (optional convenience).
     try:
         frame = sys._getframe(2)
         g = frame.f_globals
@@ -90,14 +122,13 @@ def _expose_modules(mods: Dict[str, object]) -> None:
         return
 
     g.update(mods)
-
-    # Convenience aliases commonly used in lessons.
     if "robot_moves" in mods:
         g.setdefault("rm", mods["robot_moves"])
 
 
 def setup(
     default_domain: Optional[object] = None,
+    backend: Optional[str] = None,
     verbose: bool = True,
     preload_common: bool = True,
     expose_globals: bool = True,
@@ -109,11 +140,22 @@ def setup(
     default_domain:
       - None: infer from env (ROS_DOMAIN_ID / robot vars), fallback "0"
       - int/str: explicit domain override
+    backend:
+      - "sim": use simulator modules
+      - "real": use hardware modules
+      - None: use env/default (REAL)
     """
+    selected_backend = _resolve_backend(backend)
+    previous_backend = str(os.environ.get("MATA_ACTIVE_BACKEND", "")).strip().lower()
+    _apply_backend_env(selected_backend)
+    if previous_backend != selected_backend:
+        _purge_backend_modules()
+    os.environ["MATA_ACTIVE_BACKEND"] = selected_backend
+    if verbose:
+        print(f"[lesson_loader] backend={selected_backend.upper()}")
+
     start = _safe_start_dir()
 
-    # Critical: if original cwd no longer exists, force process cwd to something valid
-    # before importing modules that call Path.cwd() at import time.
     try:
         os.chdir(str(start))
     except Exception:
@@ -128,16 +170,24 @@ def setup(
         if s not in sys.path:
             sys.path.insert(0, s)
 
-    import bootstrap
+    bootstrap_path = common_lib / "bootstrap.py"
+    spec = importlib.util.spec_from_file_location("lesson_bootstrap", str(bootstrap_path))
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load bootstrap from {bootstrap_path}")
+    bootstrap = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bootstrap)
 
     domain = _resolve_domain(default_domain)
-    # Ensure downstream ROS imports pick the intended domain.
     os.environ["ROS_DOMAIN_ID"] = domain
 
     if hasattr(bootstrap, "init"):
         info = bootstrap.init(default_domain=domain, verbose=verbose)
-    else:
+    elif hasattr(bootstrap, "bootstrap"):
         info = bootstrap.bootstrap(default_domain=domain, verbose=verbose)
+    else:
+        raise AttributeError(
+            f"bootstrap module missing both init() and bootstrap(): {bootstrap_path}"
+        )
 
     loaded: Dict[str, object] = {}
     if preload_common:
@@ -154,4 +204,9 @@ def setup(
         if verbose and loaded:
             print("Preloaded:", ", ".join(sorted(loaded.keys())))
 
-    return {"bootstrap": info, "modules": loaded, "ros_domain_id": domain}
+    return {
+        "bootstrap": info,
+        "modules": loaded,
+        "ros_domain_id": domain,
+        "backend": selected_backend,
+    }
