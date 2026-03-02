@@ -19,6 +19,7 @@ COMMON_MODULES = [
     "eyes_lib",
     "camera_lib",
     "tts_lib",
+    "student_animation_lib",
     "sound",
     "line_sensors",
     "robot_controller_api",

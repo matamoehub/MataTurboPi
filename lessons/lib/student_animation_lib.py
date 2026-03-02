@@ -1,0 +1,416 @@
+#!/usr/bin/env python3
+"""Student animation helper library for Lesson 2 character work.
+
+Design goals:
+- Use robot_moves as the sole movement backend.
+- Be safe to import/reload from any notebook cell.
+- Keep eyes/camera/tts optional when hardware is unavailable.
+"""
+
+from __future__ import annotations
+
+import builtins
+import random
+import threading
+import time
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
+
+RGB = Tuple[int, int, int]
+DEFAULT_EYE_COLOR: RGB = (0, 255, 120)
+DEFAULT_FIDGET_MOVES: Tuple[str, ...] = ("forward", "backward", "left", "right")
+_SINGLETON_KEY = "_mataturbopi_student_animation_singleton"
+_LOCK_KEY = "_mataturbopi_student_animation_lock"
+
+
+def _clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, float(x)))
+
+
+def build_fidget_plan(
+    duration_s: float,
+    step_s: float = 0.05,
+    seed: Optional[int] = None,
+    moves: Sequence[str] = DEFAULT_FIDGET_MOVES,
+) -> List[str]:
+    """Deterministic random move plan for testing/replay."""
+    step = max(0.01, float(step_s))
+    total = max(step, float(duration_s))
+    count = max(1, int(round(total / step)))
+    pool = tuple(moves) if moves else DEFAULT_FIDGET_MOVES
+    rng = random.Random(seed)
+    return [rng.choice(pool) for _ in range(count)]
+
+
+class AnimationLibrary:
+    def __init__(
+        self,
+        robot=None,
+        eyes=None,
+        camera=None,
+        tts=None,
+        base_speed: float = 300.0,
+        eye_color: RGB = DEFAULT_EYE_COLOR,
+        sleep_fn: Callable[[float], None] = time.sleep,
+    ):
+        self.base_speed = float(base_speed)
+        self.default_eye_color: RGB = tuple(int(v) for v in eye_color)
+        self.voice = "ryan"
+        self.phrases: Dict[str, Dict[str, str]] = {}
+        self._sleep = sleep_fn
+
+        self.robot = robot
+        self.eyes = eyes
+        self.camera = camera
+        self.tts = tts
+        self._robot_error: Optional[Exception] = None
+
+        self._blink_stop = threading.Event()
+        self._blink_thread: Optional[threading.Thread] = None
+        self._fidget_stop = threading.Event()
+        self._fidget_thread: Optional[threading.Thread] = None
+
+        self._ensure_backends()
+
+    def _ensure_backends(self) -> None:
+        if self.robot is None:
+            try:
+                import robot_moves as rm
+
+                if hasattr(rm, "RobotMoves"):
+                    self.robot = rm.RobotMoves(base_speed=self.base_speed)
+                else:
+                    self.robot = rm
+                self._robot_error = None
+            except Exception as e:
+                self.robot = None
+                self._robot_error = e
+
+        if self.eyes is None:
+            try:
+                import eyes_lib
+
+                self.eyes = eyes_lib.get_eyes()
+            except Exception:
+                self.eyes = None
+
+        if self.camera is None:
+            try:
+                import camera_lib
+
+                self.camera = camera_lib.get_camera()
+            except Exception:
+                self.camera = None
+
+        if self.tts is None:
+            try:
+                import tts_lib
+
+                self.tts = tts_lib
+            except Exception:
+                self.tts = None
+
+    def run_async(self, fn: Callable, *args, **kwargs) -> threading.Thread:
+        t = threading.Thread(target=fn, args=args, kwargs=kwargs, daemon=True)
+        t.start()
+        return t
+
+    # ---------------- movement ----------------
+    def _resolve_move(self, move_name: str):
+        aliases = {
+            "forward": ("forward", "move_forward"),
+            "backward": ("backward", "move_backward"),
+            "left": ("left", "move_left"),
+            "right": ("right", "move_right"),
+            "turn_left": ("turn_left", "spin_left"),
+            "turn_right": ("turn_right", "spin_right"),
+            "drift_left": ("drift_left",),
+            "drift_right": ("drift_right",),
+        }
+        names = aliases.get(move_name, (move_name,))
+        for name in names:
+            fn = getattr(self.robot, name, None) if self.robot is not None else None
+            if callable(fn):
+                return fn
+        return None
+
+    def move(self, move_name: str, seconds: float = 0.5, speed: Optional[float] = None, **kwargs):
+        self._ensure_backends()
+        if self.robot is None:
+            detail = f" ({self._robot_error})" if self._robot_error else ""
+            raise RuntimeError(f"robot_moves not available{detail}")
+
+        fn = self._resolve_move(move_name)
+        if fn is None:
+            raise AttributeError(f"robot move '{move_name}' not found on robot_moves backend")
+
+        return fn(seconds=seconds, speed=speed, **kwargs)
+
+    def move_async(self, move_name: str, seconds: float = 0.5, speed: Optional[float] = None, **kwargs):
+        return self.run_async(self.move, move_name, seconds, speed, **kwargs)
+
+    # ---------------- eyes ----------------
+    def set_eye_color(self, color: RGB):
+        self.default_eye_color = tuple(int(v) for v in color)
+        if self.eyes:
+            self.eyes.set_both(*self.default_eye_color)
+
+    def blink_once(self, color: Optional[RGB] = None, blank_s: float = 0.5):
+        if not self.eyes:
+            return
+        c = tuple(int(v) for v in (color or self.default_eye_color))
+        self.eyes.set_both(*c)
+        self.eyes.off()
+        self._sleep(max(0.0, float(blank_s)))
+        self.eyes.set_both(*c)
+
+    def wink(self, side: str = "left", color: Optional[RGB] = None, blank_s: float = 0.5):
+        if not self.eyes:
+            return
+        c = tuple(int(v) for v in (color or self.default_eye_color))
+        self.eyes.set_both(*c)
+        if str(side).strip().lower() in ("left", "l"):
+            self.eyes.set_left(0, 0, 0)
+            self._sleep(max(0.0, float(blank_s)))
+            self.eyes.set_left(*c)
+        else:
+            self.eyes.set_right(0, 0, 0)
+            self._sleep(max(0.0, float(blank_s)))
+            self.eyes.set_right(*c)
+
+    def _blink_loop(self, every_s: float, color: RGB, blank_s: float):
+        interval = max(0.05, float(every_s))
+        while not self._blink_stop.is_set():
+            if self._blink_stop.wait(interval):
+                break
+            if self.eyes:
+                self.eyes.off()
+                if self._blink_stop.wait(max(0.0, float(blank_s))):
+                    break
+                self.eyes.set_both(*color)
+
+    def start_blinking(self, every_s: float = 3.0, color: Optional[RGB] = None, blank_s: float = 0.5):
+        if not self.eyes:
+            return None
+        c = tuple(int(v) for v in (color or self.default_eye_color))
+        self.eyes.set_both(*c)
+        self.stop_blinking()
+        self._blink_stop.clear()
+        self._blink_thread = self.run_async(self._blink_loop, every_s, c, blank_s)
+        return self._blink_thread
+
+    def stop_blinking(self):
+        if self._blink_thread and self._blink_thread.is_alive():
+            self._blink_stop.set()
+            self._blink_thread.join(timeout=1.0)
+        self._blink_thread = None
+        self._blink_stop.clear()
+
+    # ---------------- camera ----------------
+    def nod(self, depth: int = 250, speed_s: Optional[float] = None):
+        if self.camera:
+            self.camera.nod(depth=depth, speed_s=speed_s)
+
+    def shake(self, width: int = 250, speed_s: Optional[float] = None):
+        if self.camera:
+            self.camera.shake(width=width, speed_s=speed_s)
+
+    def look_left(self, amplitude: int = 250, hold_s: float = 0.15):
+        if self.camera:
+            self.camera.glance_left(amplitude=amplitude, hold_s=hold_s)
+
+    def look_right(self, amplitude: int = 250, hold_s: float = 0.15):
+        if self.camera:
+            self.camera.glance_right(amplitude=amplitude, hold_s=hold_s)
+
+    def look_up(self, amplitude: int = 250, hold_s: float = 0.15):
+        if self.camera:
+            self.camera.look_up(amplitude=amplitude, hold_s=hold_s)
+
+    def look_down(self, amplitude: int = 250, hold_s: float = 0.15):
+        if self.camera:
+            self.camera.look_down(amplitude=amplitude, hold_s=hold_s)
+
+    def center_camera(self):
+        if self.camera:
+            self.camera.center_all()
+
+    # ---------------- tts ----------------
+    def select_voice(self, voice: str) -> str:
+        self.voice = str(voice).strip().lower()
+        return self.voice
+
+    def generate_phrase(
+        self,
+        key: str,
+        text: str,
+        voice: Optional[str] = None,
+        length_scale: str = "0.98",
+        sentence_silence: str = "0.08",
+    ) -> str:
+        if not self.tts:
+            raise RuntimeError("tts_lib not available")
+        v = (voice or self.voice).strip().lower()
+        path = self.tts.pre_synth(
+            text,
+            voice=v,
+            length_scale=length_scale,
+            sentence_silence=sentence_silence,
+        )
+        self.phrases[key] = {
+            "path": path,
+            "voice": v,
+            "text": text,
+            "length_scale": str(length_scale),
+            "sentence_silence": str(sentence_silence),
+        }
+        return path
+
+    def play_phrase(self, key: str, block: bool = True, device: Optional[str] = None) -> str:
+        if not self.tts:
+            raise RuntimeError("tts_lib not available")
+        if key not in self.phrases:
+            raise KeyError(f"Unknown phrase: {key}")
+        path = self.phrases[key]["path"]
+        p = self.tts.play_path_async(path, device=device)
+        if block:
+            p.wait()
+        return path
+
+    def speak(self, text: str, block: bool = True, voice: Optional[str] = None) -> str:
+        if not self.tts:
+            raise RuntimeError("tts_lib not available")
+        return self.tts.say(text, voice=voice or self.voice, block=block)
+
+    # ---------------- fidget ----------------
+    def do_fidget(
+        self,
+        duration_s: float,
+        step_s: float = 0.05,
+        speed_scale: float = 0.25,
+        seed: Optional[int] = None,
+    ) -> List[str]:
+        step = max(0.01, float(step_s))
+        speed_ratio = _clamp(speed_scale, 0.05, 1.0)
+        speed = self.base_speed * speed_ratio
+        actions = build_fidget_plan(duration_s=duration_s, step_s=step, seed=seed)
+        for action in actions:
+            self.move(action, seconds=step, speed=speed)
+        return actions
+
+    def _fidget_loop(self, step_s: float, speed_scale: float, seed: Optional[int]):
+        rng = random.Random(seed)
+        step = max(0.01, float(step_s))
+        speed_ratio = _clamp(speed_scale, 0.05, 1.0)
+        speed = self.base_speed * speed_ratio
+        while not self._fidget_stop.is_set():
+            action = rng.choice(DEFAULT_FIDGET_MOVES)
+            self.move(action, seconds=step, speed=speed)
+
+    def start_fidget(self, step_s: float = 0.05, speed_scale: float = 0.25, seed: Optional[int] = None):
+        self.stop_fidget()
+        self._fidget_stop.clear()
+        self._fidget_thread = self.run_async(self._fidget_loop, step_s, speed_scale, seed)
+        return self._fidget_thread
+
+    def stop_fidget(self):
+        if self._fidget_thread and self._fidget_thread.is_alive():
+            self._fidget_stop.set()
+            self._fidget_thread.join(timeout=1.0)
+        self._fidget_thread = None
+        self._fidget_stop.clear()
+
+    # ---------------- extras ----------------
+    def horn_normal(self, block: bool = True):
+        self._ensure_backends()
+        if self.robot is None:
+            detail = f" ({self._robot_error})" if self._robot_error else ""
+            raise RuntimeError(f"robot_moves not available{detail}")
+        horn = getattr(self.robot, "horn", None)
+        if callable(horn):
+            return horn(block=block)
+        horn = getattr(self.robot, "Horn", None)
+        if callable(horn):
+            return horn()
+        return False
+
+    def demo_turbo_sequence(self):
+        line = (
+            "Hi, I'm Turbo. I've been asked to talk to you. "
+            "When all I want to do is drift around corners. Sigh."
+        )
+        self.set_eye_color((60, 180, 255))
+        self.start_blinking(every_s=2.8, blank_s=0.5)
+        self.start_fidget(step_s=0.05, speed_scale=0.25)
+
+        try:
+            if self.tts:
+                path = self.generate_phrase("turbo_intro", line)
+                dur = self.tts.wav_duration_seconds(path)
+                p = self.tts.play_path_async(path)
+            else:
+                dur = 4.0
+                p = None
+
+            self._sleep(min(0.7, max(0.2, dur * 0.25)))
+            self.look_left(amplitude=230, hold_s=0.18)
+            self.look_right(amplitude=230, hold_s=0.18)
+
+            self._sleep(min(0.9, max(0.2, dur * 0.35)))
+            self.shake(width=260, speed_s=0.16)
+
+            if p is not None:
+                p.wait()
+        finally:
+            self.stop_fidget()
+            self.stop_blinking()
+
+        self.move("drift_left", seconds=1.0, turn_blend=0.95)
+        self._sleep(0.15)
+        self.move("drift_right", seconds=1.0, turn_blend=0.95)
+
+
+
+def get_animation_lib(**kwargs) -> AnimationLibrary:
+    lock = getattr(builtins, _LOCK_KEY, None)
+    if lock is None:
+        lock = threading.Lock()
+        setattr(builtins, _LOCK_KEY, lock)
+
+    with lock:
+        inst = getattr(builtins, _SINGLETON_KEY, None)
+        if inst is None:
+            inst = AnimationLibrary(**kwargs)
+            setattr(builtins, _SINGLETON_KEY, inst)
+            return inst
+
+        if "robot" in kwargs and kwargs["robot"] is not None:
+            inst.robot = kwargs["robot"]
+            inst._robot_error = None
+        if "base_speed" in kwargs and kwargs["base_speed"] is not None:
+            inst.base_speed = float(kwargs["base_speed"])
+        if "eye_color" in kwargs and kwargs["eye_color"] is not None:
+            inst.set_eye_color(kwargs["eye_color"])
+
+        inst._ensure_backends()
+        return inst
+
+
+
+def reset_animation_lib() -> None:
+    lock = getattr(builtins, _LOCK_KEY, None)
+    if lock is None:
+        lock = threading.Lock()
+        setattr(builtins, _LOCK_KEY, lock)
+
+    with lock:
+        inst = getattr(builtins, _SINGLETON_KEY, None)
+        if inst is not None:
+            try:
+                inst.stop_fidget()
+            except Exception:
+                pass
+            try:
+                inst.stop_blinking()
+            except Exception:
+                pass
+        setattr(builtins, _SINGLETON_KEY, None)

@@ -15,3 +15,11 @@ try:
     from lesson01.level_1 import moves
 except Exception:
     moves = None
+
+try:
+    import student_animation_lib as al
+    importlib.reload(al)
+except Exception:
+    al = None
+
+anim = al.get_animation_lib(base_speed=300) if al else None
