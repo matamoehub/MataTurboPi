@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+import time
 import tkinter as tk
 from tkinter import ttk
 
@@ -23,6 +24,7 @@ class SimApp:
         self.root = root
         self.root.title("MataTurboPi Simulator")
         self._syncing_controls = False
+        self._anim_t0 = time.monotonic()
 
         frame = ttk.Frame(root, padding=8)
         frame.pack(fill="both", expand=True)
@@ -311,14 +313,31 @@ class SimApp:
     def _rgb_to_hex(self, rgb):
         return "#%02x%02x%02x" % (int(rgb[0]), int(rgb[1]), int(rgb[2]))
 
+    def _mix_rgb(self, rgb, boost: float):
+        f = max(0.0, min(1.0, float(boost)))
+        r = int(rgb[0] + (255 - int(rgb[0])) * f)
+        g = int(rgb[1] + (255 - int(rgb[1])) * f)
+        b = int(rgb[2] + (255 - int(rgb[2])) * f)
+        return r, g, b
+
     def _proj3(self, x: float, y: float, z: float, ox: float, oy: float):
         sx = ox + x - z * 0.58
         sy = oy - y - z * 0.36
         return sx, sy
 
-    def _draw_camera_model(self, yaw_offset: float, pitch_offset: float, left_hex: str, right_hex: str):
+    def _draw_camera_model(
+        self,
+        yaw_offset: float,
+        pitch_offset: float,
+        left_rgb,
+        right_rgb,
+        motion_level: float,
+        phase: float,
+    ):
         c = self.cam_model
         c.delete("all")
+        left_hex = self._rgb_to_hex(left_rgb)
+        right_hex = self._rgb_to_hex(right_rgb)
         # Local helper for concentric sonar rings.
         def sonar(x: float, y: float, lit_hex: str):
             c.create_oval(x - 18, y - 18, x + 18, y + 18, fill="#dce3ea", outline="#8f9aa5", width=1.5)
@@ -331,19 +350,24 @@ class SimApp:
         def wheel(x: float, y: float, r: float = 18):
             c.create_oval(x - r, y - r, x + r, y + r, fill="#f2c21d", outline="#b58a08", width=2)
             c.create_oval(x - 11, y - 11, x + 11, y + 11, fill="#1b2025", outline="#13171b")
-            c.create_line(x - 11, y, x + 11, y, fill="#2d353d", width=2)
+            ang = phase * (1.2 + motion_level * 3.2)
+            dx = math.cos(ang) * 11
+            dy = math.sin(ang) * 11
+            c.create_line(x - dx, y - dy, x + dx, y + dy, fill="#2d353d", width=2)
 
-        wheel(34, 140)
-        wheel(62, 140, 16)
-        wheel(178, 140, 16)
-        wheel(206, 140)
+        # Front two wheels only (to match your reference framing).
+        wheel(36, 142, 20)
+        wheel(204, 142, 20)
 
         # Front bumper / lower plate.
         c.create_polygon(40, 128, 200, 128, 184, 162, 56, 162, fill="#2a323a", outline="#14191e", width=2)
         c.create_oval(52, 145, 58, 151, fill="#2e3740", outline="")
         c.create_oval(182, 145, 188, 151, fill="#2e3740", outline="")
-        c.create_oval(68, 150, 76, 158, fill="#2c6cff", outline="#1b3ca1")
-        c.create_oval(164, 150, 172, 158, fill="#2c6cff", outline="#1b3ca1")
+        pulse = 0.5 + 0.5 * math.sin(phase * 2.0)
+        blue_l = "#%02x%02x%02x" % (20, 70 + int(120 * pulse), 255)
+        blue_r = "#%02x%02x%02x" % (20, 70 + int(120 * (1.0 - pulse * 0.4)), 255)
+        c.create_oval(68, 150, 76, 158, fill=blue_l, outline="#1b3ca1")
+        c.create_oval(164, 150, 172, 158, fill=blue_r, outline="#1b3ca1")
 
         # Middle black body.
         c.create_rectangle(66, 88, 174, 132, fill="#1f252b", outline="#0f1317", width=2)
@@ -351,8 +375,10 @@ class SimApp:
 
         # Sonar faceplate with two eyes.
         c.create_rectangle(78, 96, 162, 132, fill="#141a20", outline="#0e1216")
-        sonar(98, 114, left_hex)
-        sonar(142, 114, right_hex)
+        left_glow = self._mix_rgb(left_rgb, 0.10 + 0.22 * (0.5 + 0.5 * math.sin(phase * 2.6)))
+        right_glow = self._mix_rgb(right_rgb, 0.10 + 0.22 * (0.5 + 0.5 * math.sin(phase * 2.6 + 0.8)))
+        sonar(98, 114, self._rgb_to_hex(left_glow))
+        sonar(142, 114, self._rgb_to_hex(right_glow))
         for sx in (82, 158):
             c.create_oval(sx - 2.5, 99.5, sx + 2.5, 104.5, fill="#8d98a3", outline="")
             c.create_oval(sx - 2.5, 124.5, sx + 2.5, 129.5, fill="#8d98a3", outline="")
@@ -361,8 +387,9 @@ class SimApp:
         c.create_rectangle(114, 66, 126, 82, fill="#171d23", outline="#0e1216")
 
         # Pan-tilt camera bracket + board responding to yaw/pitch.
-        cam_cx = 120 + yaw_offset * 24.0
-        cam_cy = 52 + pitch_offset * 14.0
+        # Accentuated movement so left/right/up/down is easy to read.
+        cam_cx = 120 + yaw_offset * 44.0 + math.sin(phase * 1.7) * (0.6 + 1.4 * motion_level)
+        cam_cy = 52 + pitch_offset * 28.0 + math.sin(phase * 1.3 + 0.8) * (0.4 + 0.9 * motion_level)
         c.create_rectangle(cam_cx - 24, cam_cy - 17, cam_cx + 24, cam_cy + 17, fill="#1b2127", outline="#0e1318", width=2)
         c.create_line(cam_cx - 24, cam_cy + 14, cam_cx - 34, cam_cy + 22, fill="#2a323a", width=3)
         c.create_line(cam_cx + 24, cam_cy + 14, cam_cx + 34, cam_cy + 22, fill="#2a323a", width=3)
@@ -375,9 +402,9 @@ class SimApp:
         # Direction arrow.
         ax0, ay0 = 208, 24
         c.create_text(ax0, ay0 - 10, text="View Dir", fill="#546e7a", font=("TkDefaultFont", 8))
-        c.create_line(ax0, ay0, ax0 + yaw_offset * 22.0, ay0 + pitch_offset * 14.0, arrow="last", width=2, fill="#1976d2")
+        c.create_line(ax0, ay0, ax0 + yaw_offset * 34.0, ay0 + pitch_offset * 22.0, arrow="last", width=3, fill="#1976d2")
 
-        c.create_text(12, 187, text="Front view", fill="#6b7280", anchor="w", font=("TkDefaultFont", 8))
+        c.create_text(12, 187, text="Front view (animated)", fill="#6b7280", anchor="w", font=("TkDefaultFont", 8))
 
     def update_side_panel(self, st):
         eyes = st.get("eyes", {})
@@ -406,7 +433,17 @@ class SimApp:
         lr = "Right" if yaw_offset > 0.12 else ("Left" if yaw_offset < -0.12 else "Center")
         ud = "Down" if pitch_offset > 0.12 else ("Up" if pitch_offset < -0.12 else "Level")
         self.cam_axis_label.config(text=f"Direction: {lr} / {ud}")
-        self._draw_camera_model(yaw_offset, pitch_offset, left_hex, right_hex)
+        robot = st.get("robot", {})
+        motion_level = min(
+            1.0,
+            (
+                abs(float(robot.get("vx", 0.0))) * 2.8
+                + abs(float(robot.get("vy", 0.0))) * 2.8
+                + abs(float(robot.get("omega_deg_s", 0.0))) / 240.0
+            ),
+        )
+        phase = time.monotonic() - self._anim_t0
+        self._draw_camera_model(yaw_offset, pitch_offset, left, right, motion_level, phase)
 
         self._syncing_controls = True
         try:
