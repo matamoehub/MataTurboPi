@@ -88,7 +88,7 @@ class SimApp:
         self.cam_model = tk.Canvas(
             cam_card,
             width=240,
-            height=165,
+            height=200,
             bg="#f8fafc",
             highlightthickness=1,
             highlightbackground="#d2dae2",
@@ -262,56 +262,59 @@ class SimApp:
     def _draw_camera_model(self, yaw_offset: float, pitch_offset: float, left_hex: str, right_hex: str):
         c = self.cam_model
         c.delete("all")
-        ox = 122.0
-        oy = 124.0
+        # Local helper for concentric sonar rings.
+        def sonar(x: float, y: float, lit_hex: str):
+            c.create_oval(x - 18, y - 18, x + 18, y + 18, fill="#dce3ea", outline="#8f9aa5", width=1.5)
+            c.create_oval(x - 14, y - 14, x + 14, y + 14, fill="#1f2429", outline="#3f474f")
+            c.create_oval(x - 10, y - 10, x + 10, y + 10, fill="#2b3138", outline="#555f69")
+            c.create_oval(x - 7, y - 7, x + 7, y + 7, fill=lit_hex, outline="")
+            c.create_oval(x - 3, y - 3, x + 3, y + 3, fill="#0c1014", outline="")
 
-        # Black body (pseudo-3D)
-        front = [(-58, -8, 0), (58, -8, 0), (58, 18, 0), (-58, 18, 0)]
-        top = [(-58, 18, 0), (58, 18, 0), (58, 18, 22), (-58, 18, 22)]
-        side = [(58, -8, 0), (58, 18, 0), (58, 18, 22), (58, -8, 22)]
-        for poly, fill, outline in (
-            (front, "#1f252c", "#0f1418"),
-            (top, "#2b323a", "#12171c"),
-            (side, "#181d23", "#0d1114"),
-        ):
-            pts = []
-            for x, y, z in poly:
-                sx, sy = self._proj3(x, y, z, ox, oy)
-                pts.extend([sx, sy])
-            c.create_polygon(*pts, fill=fill, outline=outline, width=1.5)
+        # Wheels (side view hints like your photo).
+        for x in (28, 56, 184, 212):
+            c.create_oval(x - 17, 122, x + 17, 156, fill="#f2c21d", outline="#b58a08", width=2)
+            c.create_oval(x - 10, 128, x + 10, 150, fill="#1b2025", outline="#13171b")
 
-        # Yellow wheels hint.
-        for wx in (-70, 70):
-            sx, sy = self._proj3(wx, -4, 2, ox, oy)
-            c.create_oval(sx - 13, sy - 13, sx + 13, sy + 13, fill="#f4c62e", outline="#a67f11", width=2)
-            c.create_oval(sx - 5, sy - 5, sx + 5, sy + 5, fill="#1f252c", outline="")
+        # Front bumper / lower plate.
+        c.create_polygon(40, 128, 200, 128, 184, 162, 56, 162, fill="#2a323a", outline="#14191e", width=2)
+        c.create_oval(52, 145, 58, 151, fill="#2e3740", outline="")
+        c.create_oval(182, 145, 188, 151, fill="#2e3740", outline="")
+        c.create_oval(68, 150, 76, 158, fill="#2c6cff", outline="#1b3ca1")
+        c.create_oval(164, 150, 172, 158, fill="#2c6cff", outline="#1b3ca1")
 
-        # Eyes on robot front.
-        lcx, lcy = self._proj3(-16, 7, 2, ox, oy)
-        rcx, rcy = self._proj3(16, 7, 2, ox, oy)
-        c.create_oval(lcx - 7, lcy - 7, lcx + 7, lcy + 7, fill=left_hex, outline="#2d3436")
-        c.create_oval(rcx - 7, rcy - 7, rcx + 7, rcy + 7, fill=right_hex, outline="#2d3436")
+        # Middle black body.
+        c.create_rectangle(66, 88, 174, 132, fill="#1f252b", outline="#0f1317", width=2)
+        c.create_rectangle(74, 74, 166, 96, fill="#232a31", outline="#11161a")
 
-        # Camera mast + gimbal.
-        mx, my = self._proj3(0, 24, 10, ox, oy)
-        c.create_rectangle(mx - 6, my - 18, mx + 6, my + 4, fill="#222930", outline="#0f151a")
-        bx, by = self._proj3(0, 30, 10, ox, oy)
-        c.create_oval(bx - 13, by - 9, bx + 13, by + 9, fill="#3c4d5b", outline="#23313a")
+        # Sonar faceplate with two eyes.
+        c.create_rectangle(78, 96, 162, 132, fill="#141a20", outline="#0e1216")
+        sonar(98, 114, left_hex)
+        sonar(142, 114, right_hex)
+        for sx in (82, 158):
+            c.create_oval(sx - 2.5, 99.5, sx + 2.5, 104.5, fill="#8d98a3", outline="")
+            c.create_oval(sx - 2.5, 124.5, sx + 2.5, 129.5, fill="#8d98a3", outline="")
 
-        # Camera lens position responds to yaw/pitch.
-        lx = bx + yaw_offset * 34.0
-        ly = by + pitch_offset * 24.0
-        lens_r = 10
-        c.create_line(bx, by, lx, ly, fill="#2f3e46", width=3)
-        c.create_oval(lx - lens_r, ly - lens_r, lx + lens_r, ly + lens_r, fill="#273238", outline="#10161b")
-        c.create_oval(lx - 4, ly - 4, lx + 4, ly + 4, fill="#8ac6ff", outline="")
+        # Camera mount mast.
+        c.create_rectangle(114, 66, 126, 82, fill="#171d23", outline="#0e1216")
 
-        # Direction indicator in panel space.
-        ax0, ay0 = 198, 28
+        # Pan-tilt camera bracket + board responding to yaw/pitch.
+        cam_cx = 120 + yaw_offset * 24.0
+        cam_cy = 52 + pitch_offset * 14.0
+        c.create_rectangle(cam_cx - 24, cam_cy - 17, cam_cx + 24, cam_cy + 17, fill="#1b2127", outline="#0e1318", width=2)
+        c.create_line(cam_cx - 24, cam_cy + 14, cam_cx - 34, cam_cy + 22, fill="#2a323a", width=3)
+        c.create_line(cam_cx + 24, cam_cy + 14, cam_cx + 34, cam_cy + 22, fill="#2a323a", width=3)
+        c.create_oval(cam_cx - 11, cam_cy - 11, cam_cx + 11, cam_cy + 11, fill="#0f1317", outline="#2f3942", width=2)
+        c.create_oval(cam_cx - 4, cam_cy - 4, cam_cx + 4, cam_cy + 4, fill="#7dc3ff", outline="")
+        for px in (-20, 20):
+            c.create_oval(cam_cx + px - 2.5, cam_cy - 13.5, cam_cx + px + 2.5, cam_cy - 8.5, fill="#949faa", outline="")
+            c.create_oval(cam_cx + px - 2.5, cam_cy + 8.5, cam_cx + px + 2.5, cam_cy + 13.5, fill="#949faa", outline="")
+
+        # Direction arrow.
+        ax0, ay0 = 208, 24
         c.create_text(ax0, ay0 - 10, text="View Dir", fill="#546e7a", font=("TkDefaultFont", 8))
-        c.create_line(ax0, ay0, ax0 + yaw_offset * 26.0, ay0 + pitch_offset * 18.0, arrow="last", width=2, fill="#1976d2")
+        c.create_line(ax0, ay0, ax0 + yaw_offset * 22.0, ay0 + pitch_offset * 14.0, arrow="last", width=2, fill="#1976d2")
 
-        c.create_text(28, 148, text="TurboPi style", fill="#6b7280", anchor="w", font=("TkDefaultFont", 8))
+        c.create_text(12, 187, text="Front view", fill="#6b7280", anchor="w", font=("TkDefaultFont", 8))
 
     def update_side_panel(self, st):
         eyes = st.get("eyes", {})
