@@ -54,10 +54,11 @@ def _speak_cmd(text: str, voice: Optional[str] = None):
 
     # Windows: PowerShell speech synth (usually available)
     if sysname == "windows" and shutil.which("powershell"):
+        safe = text.replace("'", "''")
         ps = (
             "Add-Type -AssemblyName System.Speech; "
             "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer; "
-            f"$s.Speak('{text.replace("'", "''")}')"
+            f"$s.Speak('{safe}')"
         )
         return ["powershell", "-NoProfile", "-Command", ps]
 
