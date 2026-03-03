@@ -10,6 +10,7 @@ import math
 import os
 import subprocess
 import tempfile
+import time
 import wave
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
@@ -35,6 +36,7 @@ _SEMITONES: Dict[str, int] = {
 }
 
 DEFAULT_BPM = int(os.getenv("BUZZER_DEFAULT_BPM", "120"))
+POST_NOTE_GAP_S = float(os.getenv("BUZZER_POST_NOTE_GAP_S", "0.01"))
 
 
 def note_to_freq(note: str) -> int:
@@ -74,15 +76,19 @@ def _write_beep_wav(freq: int, duration_s: float) -> str:
     return path
 
 
-def _play_wav(path: str) -> None:
+def _play_wav(path: str):
     sysname = os.uname().sysname.lower() if hasattr(os, "uname") else ""
     if sysname == "darwin":
-        subprocess.Popen(["afplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return subprocess.Popen(["afplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif sysname == "linux":
-        subprocess.Popen(["aplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return subprocess.Popen(["aplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
         # best-effort fallback
-        subprocess.Popen(["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return subprocess.Popen(
+            ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
 
 @dataclass
@@ -92,22 +98,34 @@ class Buzzer:
     def off(self) -> None:
         pass
 
-    def beep(self, freq: int = 2000, duration_s: float = 0.2, gap_s: float = 0.01) -> None:
+    def beep(self, freq: int = 2000, duration_s: float = 0.2, gap_s: float = POST_NOTE_GAP_S) -> None:
         if int(freq) <= 0:
             return
+        dur = max(0.02, float(duration_s))
+        t0 = time.time()
         try:
-            p = _write_beep_wav(int(freq), float(duration_s))
-            _play_wav(p)
+            p = _write_beep_wav(int(freq), dur)
+            proc = _play_wav(p)
+            if proc is not None:
+                proc.wait(timeout=max(0.1, dur + 0.5))
         except Exception:
             # Never crash a lesson due to missing local audio tool.
-            print(f"[sim buzzer] beep {freq}Hz {duration_s:.2f}s")
+            print(f"[sim buzzer] beep {freq}Hz {dur:.2f}s")
+        elapsed = time.time() - t0
+        remain = dur - elapsed
+        if remain > 0:
+            time.sleep(remain)
+        if float(gap_s) > 0:
+            time.sleep(float(gap_s))
 
     def play_note(self, note: str, beats: float = 1.0, bpm: int = DEFAULT_BPM) -> None:
         beat_s = 60.0 / float(max(1, int(bpm)))
         duration_s = float(beats) * beat_s
         freq = note_to_freq(note)
         if freq > 0:
-            self.beep(freq=freq, duration_s=duration_s)
+            self.beep(freq=freq, duration_s=duration_s, gap_s=POST_NOTE_GAP_S)
+        else:
+            time.sleep(max(0.0, duration_s))
 
     def play_notes(self, score: str, bpm: int = DEFAULT_BPM) -> None:
         tokens = [t for t in str(score).split() if t.strip()]
