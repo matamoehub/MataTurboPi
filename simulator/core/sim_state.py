@@ -127,8 +127,15 @@ def apply_robot_motion(
     c = math.cos(heading)
     s = math.sin(heading)
 
-    wx = float(vx_m_s) * c - float(vy_m_s) * s
-    wy = float(vx_m_s) * s + float(vy_m_s) * c
+    # Simulator convention:
+    # - vx = forward/back
+    # - vy = right/left (positive = right)
+    # - heading_deg = 0 means facing up on screen (+Y)
+    #
+    # Render math uses local X=right and local Y=forward,
+    # so map (vy, vx) into (local_x, local_y) before rotating.
+    wx = float(vy_m_s) * c - float(vx_m_s) * s
+    wy = float(vy_m_s) * s + float(vx_m_s) * c
 
     r["x"] = float(r["x"]) + wx * dt
     r["y"] = float(r["y"]) + wy * dt
