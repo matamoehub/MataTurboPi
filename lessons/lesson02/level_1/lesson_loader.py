@@ -33,6 +33,7 @@ BACKEND_MODULES = [
     "eyes_lib",
     "camera_lib",
     "robot_controller_api",
+    "tts_lib",
 ]
 
 

@@ -7,6 +7,7 @@ Lightweight simulator for running lessons without the physical robot.
 - 2D robot movement visualization
 - Eye LED color simulation
 - Camera pan/tilt simulation
+- Local computer TTS playback in SIM mode
 - Works with existing lesson imports through shim modules
 
 ## Backend Switching Per Lesson
@@ -132,3 +133,13 @@ Windows PowerShell activate:
 - `ModuleNotFoundError: tkinter`: install Tk (`python3-tk` on Linux) or reinstall Python from python.org.
 - Real backend import errors on non-robot machines are expected. Use `setup(backend="sim")`.
 - If notebook was already running with old backend, rerun `setup(...)` or restart kernel.
+
+## TTS In Simulator Mode
+
+When using `setup(backend="sim")`, `tts_lib` is redirected to a simulator shim:
+
+- macOS: uses built-in `say`
+- Linux: uses `spd-say` or `espeak`
+- Windows: uses PowerShell speech synthesis
+
+Audio plays on the local computer speakers (not the robot).
