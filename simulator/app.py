@@ -288,11 +288,14 @@ class SimApp:
         )
 
         # Camera head and moving lens.
-        head_x, head_y = self._local_to_canvas(cx, cy, heading, yaw_norm * 16.0, body_l * 0.46 + pitch_norm * 10.0)
+        # Push camera further forward so it reads like a "nose".
+        head_x, head_y = self._local_to_canvas(cx, cy, heading, yaw_norm * 16.0, body_l * 0.58 + pitch_norm * 10.0)
         self.canvas.create_rectangle(
             head_x - 14, head_y - 12, head_x + 14, head_y + 12, fill="#252c33", outline="#0f1317", tags="robot"
         )
-        self.canvas.create_oval(head_x - 6, head_y - 6, head_x + 6, head_y + 6, fill="#74b9ff", outline="#1b4f72", tags="robot")
+        lens_x, lens_y = self._local_to_canvas(cx, cy, heading, yaw_norm * 16.0, body_l * 0.64 + pitch_norm * 10.0)
+        self.canvas.create_line(head_x, head_y, lens_x, lens_y, fill="#2f3942", width=2, tags="robot")
+        self.canvas.create_oval(lens_x - 6, lens_y - 6, lens_x + 6, lens_y + 6, fill="#74b9ff", outline="#1b4f72", tags="robot")
 
         eyes = st["eyes"]
         l = eyes.get("left", [0, 0, 0])
