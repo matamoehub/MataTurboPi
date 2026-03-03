@@ -34,6 +34,7 @@ BACKEND_MODULES = [
     "camera_lib",
     "robot_controller_api",
     "tts_lib",
+    "buzzer_lib",
 ]
 
 

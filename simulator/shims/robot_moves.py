@@ -4,15 +4,80 @@
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
+import time
 from typing import Optional
+from pathlib import Path
 
 from simulator.core.sim_state import apply_robot_motion, load_state, reset_state, save_state
 
 BASE_SPEED: float = float(os.environ.get("BASE_SPEED", "300"))
 RATE_HZ: float = float(os.environ.get("RATE_HZ", "20"))
 
-SPEED_TO_M_S = 1.0 / 380.0
-TURN_SPEED_TO_DEG_S = 95.0 / 300.0
+# Simulator tuning: keep movement readable for classroom demos.
+SPEED_TO_M_S = float(os.environ.get("SIM_SPEED_TO_M_S", str(1.0 / 700.0)))
+TURN_SPEED_TO_DEG_S = float(os.environ.get("SIM_TURN_TO_DEG_S", str(68.0 / 300.0)))
+SIM_STEP_DT = float(os.environ.get("SIM_STEP_DT", "0.04"))  # ~25 FPS state updates
+
+HORN_FILE = os.environ.get("HORN_FILE", "meepmeep.mp3")
+
+
+def _safe_cwd_path() -> Path:
+    try:
+        p = Path.cwd()
+        if p.exists():
+            return p
+    except Exception:
+        pass
+    return Path(os.environ.get("HOME", "/tmp"))
+
+
+_SEARCH_DIRS = [
+    _safe_cwd_path(),
+    Path(__file__).resolve().parent.parent.parent / "common" / "sounds",
+    Path(__file__).resolve().parent,
+    Path("/tmp"),
+]
+
+
+def _find_horn(name: Optional[str] = None) -> Optional[Path]:
+    fname = str(name or HORN_FILE).strip()
+    p = Path(fname).expanduser()
+    if p.is_file():
+        return p
+    for d in _SEARCH_DIRS:
+        q = d / fname
+        if q.is_file():
+            return q
+    return None
+
+
+def _play_local_audio(path: Path) -> bool:
+    sysname = os.uname().sysname.lower() if hasattr(os, "uname") else ""
+    try:
+        # macOS
+        if sysname == "darwin" and shutil.which("afplay"):
+            subprocess.Popen(["afplay", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        # Linux
+        if shutil.which("aplay") and str(path).lower().endswith(".wav"):
+            subprocess.Popen(["aplay", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        if shutil.which("paplay"):
+            subprocess.Popen(["paplay", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        # Generic fallback
+        if shutil.which("ffplay"):
+            subprocess.Popen(
+                ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", str(path)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return True
+    except Exception:
+        return False
+    return False
 
 
 def _vel(speed: Optional[float]) -> float:
@@ -31,8 +96,26 @@ def set_rate(hz: float):
 
 
 def _move(vx: float, vy: float, omega: float, seconds: float, label: str):
+    total = max(0.0, float(seconds))
+    if total <= 0.0:
+        return
+
+    elapsed = 0.0
+    dt = max(0.01, float(SIM_STEP_DT))
+    while elapsed < total:
+        step = min(dt, total - elapsed)
+        st = load_state()
+        apply_robot_motion(st, vx, vy, omega, step, label)
+        save_state(st)
+        time.sleep(step)
+        elapsed += step
+
+    # End each motion command at rest.
     st = load_state()
-    apply_robot_motion(st, vx, vy, omega, seconds, label)
+    st["robot"]["vx"] = 0.0
+    st["robot"]["vy"] = 0.0
+    st["robot"]["omega_deg_s"] = 0.0
+    st["last_command"] = label
     save_state(st)
 
 
@@ -112,10 +195,18 @@ def drift_right(seconds: float = None, speed: float = None, turn_blend: float = 
 
 
 def horn(*_args, **_kwargs) -> bool:
+    path_arg = _kwargs.get("path") if isinstance(_kwargs, dict) else None
+    h = _find_horn(path_arg)
     st = load_state()
     st["last_command"] = "horn"
     save_state(st)
-    return True
+    if not h:
+        print("[sim horn] file not found. Set HORN_FILE to a local .wav path.")
+        return False
+    ok = _play_local_audio(h)
+    if not ok:
+        print("[sim horn] no local audio player found for", h)
+    return ok
 
 
 def Horn():

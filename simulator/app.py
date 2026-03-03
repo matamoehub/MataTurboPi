@@ -22,6 +22,7 @@ class SimApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("MataTurboPi Simulator")
+        self._syncing_controls = False
 
         frame = ttk.Frame(root, padding=8)
         frame.pack(fill="both", expand=True)
@@ -95,11 +96,67 @@ class SimApp:
         )
         self.cam_model.pack(fill="x")
 
+        controls_card = ttk.LabelFrame(self.panel, text="Manual Controls", padding=(8, 8))
+        controls_card.pack(fill="x", pady=(10, 10))
+
+        ttk.Label(controls_card, text="Camera Yaw").pack(anchor="w")
+        self.cam_yaw_var = tk.IntVar(value=1500)
+        self.cam_yaw_scale = ttk.Scale(
+            controls_card,
+            from_=1000,
+            to=2000,
+            variable=self.cam_yaw_var,
+            command=self._on_camera_slider,
+        )
+        self.cam_yaw_scale.pack(fill="x")
+
+        ttk.Label(controls_card, text="Camera Pitch").pack(anchor="w", pady=(6, 0))
+        self.cam_pitch_var = tk.IntVar(value=1500)
+        self.cam_pitch_scale = ttk.Scale(
+            controls_card,
+            from_=1000,
+            to=2000,
+            variable=self.cam_pitch_var,
+            command=self._on_camera_slider,
+        )
+        self.cam_pitch_scale.pack(fill="x")
+
+        ttk.Label(controls_card, text="Eyes R / G / B").pack(anchor="w", pady=(8, 0))
+        self.eye_r_var = tk.IntVar(value=0)
+        self.eye_g_var = tk.IntVar(value=0)
+        self.eye_b_var = tk.IntVar(value=0)
+        for label, var in (("R", self.eye_r_var), ("G", self.eye_g_var), ("B", self.eye_b_var)):
+            row = ttk.Frame(controls_card)
+            row.pack(fill="x", pady=(2, 0))
+            ttk.Label(row, text=label, width=2).pack(side="left")
+            ttk.Scale(row, from_=0, to=255, variable=var, command=self._on_eye_slider).pack(side="left", fill="x", expand=True)
+
         sensors_card = ttk.LabelFrame(self.panel, text="Sensors (Upcoming)", padding=(8, 8))
         sensors_card.pack(fill="x")
         ttk.Label(sensors_card, text="Placeholder for line / distance / vision inputs").pack(anchor="w")
         self.last_cmd_label = ttk.Label(self.panel, text="Last command: -")
         self.last_cmd_label.pack(anchor="w", pady=(10, 0))
+
+    def _on_camera_slider(self, _value):
+        if self._syncing_controls:
+            return
+        st = load_state()
+        st["camera"]["yaw"] = int(float(self.cam_yaw_var.get()))
+        st["camera"]["pitch"] = int(float(self.cam_pitch_var.get()))
+        st["last_command"] = "panel_camera"
+        save_state(st)
+
+    def _on_eye_slider(self, _value):
+        if self._syncing_controls:
+            return
+        r = int(float(self.eye_r_var.get()))
+        g = int(float(self.eye_g_var.get()))
+        b = int(float(self.eye_b_var.get()))
+        st = load_state()
+        st["eyes"]["left"] = [r, g, b]
+        st["eyes"]["right"] = [r, g, b]
+        st["last_command"] = "panel_eyes"
+        save_state(st)
 
     def reset_robot(self):
         st = reset_state()
@@ -270,10 +327,16 @@ class SimApp:
             c.create_oval(x - 7, y - 7, x + 7, y + 7, fill=lit_hex, outline="")
             c.create_oval(x - 3, y - 3, x + 3, y + 3, fill="#0c1014", outline="")
 
-        # Wheels (side view hints like your photo).
-        for x in (28, 56, 184, 212):
-            c.create_oval(x - 17, 122, x + 17, 156, fill="#f2c21d", outline="#b58a08", width=2)
-            c.create_oval(x - 10, 128, x + 10, 150, fill="#1b2025", outline="#13171b")
+        # Wheels (front-on/straight like reference photo).
+        def wheel(x: float, y: float, r: float = 18):
+            c.create_oval(x - r, y - r, x + r, y + r, fill="#f2c21d", outline="#b58a08", width=2)
+            c.create_oval(x - 11, y - 11, x + 11, y + 11, fill="#1b2025", outline="#13171b")
+            c.create_line(x - 11, y, x + 11, y, fill="#2d353d", width=2)
+
+        wheel(34, 140)
+        wheel(62, 140, 16)
+        wheel(178, 140, 16)
+        wheel(206, 140)
 
         # Front bumper / lower plate.
         c.create_polygon(40, 128, 200, 128, 184, 162, 56, 162, fill="#2a323a", outline="#14191e", width=2)
@@ -344,6 +407,16 @@ class SimApp:
         ud = "Down" if pitch_offset > 0.12 else ("Up" if pitch_offset < -0.12 else "Level")
         self.cam_axis_label.config(text=f"Direction: {lr} / {ud}")
         self._draw_camera_model(yaw_offset, pitch_offset, left_hex, right_hex)
+
+        self._syncing_controls = True
+        try:
+            self.cam_yaw_var.set(yaw)
+            self.cam_pitch_var.set(pitch)
+            self.eye_r_var.set(int(left[0]))
+            self.eye_g_var.set(int(left[1]))
+            self.eye_b_var.set(int(left[2]))
+        finally:
+            self._syncing_controls = False
 
         self.last_cmd_label.config(text=f"Last command: {st.get('last_command', '-')}")
 

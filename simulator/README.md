@@ -143,3 +143,10 @@ When using `setup(backend="sim")`, `tts_lib` is redirected to a simulator shim:
 - Windows: uses PowerShell speech synthesis
 
 Audio plays on the local computer speakers (not the robot).
+
+## Horn / Buzzer In Simulator
+
+- `robot_moves.horn()` plays a local audio file on your computer.
+- Default horn file is `meepmeep.wav` (set with `HORN_FILE` env var).
+- If you only have mp3 files, set `HORN_FILE=meepmeep.mp3` and ensure `ffplay` is installed.
+- `buzzer_lib` is also shimmed in SIM mode (no ROS dependency).
