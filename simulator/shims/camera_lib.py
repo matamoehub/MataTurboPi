@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Optional
 
 from simulator.core.sim_state import load_state, save_state
+
+CAMERA_TIME_SCALE = float(os.getenv("SIM_CAMERA_TIME_SCALE", "2.0"))  # 50% slower = 2x duration
 
 
 class Camera:
@@ -47,7 +50,7 @@ class Camera:
         save_state(st)
         dt = float(self.speed_s if speed_s is None else speed_s)
         if dt > 0:
-            time.sleep(dt)
+            time.sleep(dt * CAMERA_TIME_SCALE)
 
     def _send(self, sid: int, pos: int, speed_s: Optional[float] = None):
         if int(sid) == self.nod_id:
@@ -89,22 +92,22 @@ class Camera:
 
     def glance_left(self, amplitude: int = 250, hold_s: float = 0.15):
         self.set_yaw(self.center - int(amplitude))
-        time.sleep(max(0.0, float(hold_s)))
+        time.sleep(max(0.0, float(hold_s)) * CAMERA_TIME_SCALE)
         self.set_yaw(self.center)
 
     def glance_right(self, amplitude: int = 250, hold_s: float = 0.15):
         self.set_yaw(self.center + int(amplitude))
-        time.sleep(max(0.0, float(hold_s)))
+        time.sleep(max(0.0, float(hold_s)) * CAMERA_TIME_SCALE)
         self.set_yaw(self.center)
 
     def look_up(self, amplitude: int = 250, hold_s: float = 0.15):
         self.set_pitch(self.center + int(amplitude))
-        time.sleep(max(0.0, float(hold_s)))
+        time.sleep(max(0.0, float(hold_s)) * CAMERA_TIME_SCALE)
         self.set_pitch(self.center)
 
     def look_down(self, amplitude: int = 250, hold_s: float = 0.15):
         self.set_pitch(self.center - int(amplitude))
-        time.sleep(max(0.0, float(hold_s)))
+        time.sleep(max(0.0, float(hold_s)) * CAMERA_TIME_SCALE)
         self.set_pitch(self.center)
 
 

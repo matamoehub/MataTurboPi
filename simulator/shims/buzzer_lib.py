@@ -37,6 +37,7 @@ _SEMITONES: Dict[str, int] = {
 
 DEFAULT_BPM = int(os.getenv("BUZZER_DEFAULT_BPM", "120"))
 POST_NOTE_GAP_S = float(os.getenv("BUZZER_POST_NOTE_GAP_S", "0.01"))
+MUSIC_TIME_SCALE = float(os.getenv("SIM_MUSIC_TIME_SCALE", "1.33"))  # 33% slower
 
 
 def note_to_freq(note: str) -> int:
@@ -120,10 +121,10 @@ class Buzzer:
 
     def play_note(self, note: str, beats: float = 1.0, bpm: int = DEFAULT_BPM) -> None:
         beat_s = 60.0 / float(max(1, int(bpm)))
-        duration_s = float(beats) * beat_s
+        duration_s = float(beats) * beat_s * MUSIC_TIME_SCALE
         freq = note_to_freq(note)
         if freq > 0:
-            self.beep(freq=freq, duration_s=duration_s, gap_s=POST_NOTE_GAP_S)
+            self.beep(freq=freq, duration_s=duration_s, gap_s=POST_NOTE_GAP_S * MUSIC_TIME_SCALE)
         else:
             time.sleep(max(0.0, duration_s))
 
