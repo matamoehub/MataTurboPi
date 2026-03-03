@@ -37,7 +37,7 @@ _SEMITONES: Dict[str, int] = {
 
 DEFAULT_BPM = int(os.getenv("BUZZER_DEFAULT_BPM", "120"))
 POST_NOTE_GAP_S = float(os.getenv("BUZZER_POST_NOTE_GAP_S", "0.01"))
-MUSIC_TIME_SCALE = float(os.getenv("SIM_MUSIC_TIME_SCALE", "1.33"))  # 33% slower
+MUSIC_TIME_SCALE = float(os.getenv("SIM_MUSIC_TIME_SCALE", "1.0"))
 
 
 def note_to_freq(note: str) -> int:
