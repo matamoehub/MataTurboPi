@@ -131,6 +131,29 @@ class SimApp:
             pts.extend([x, y])
         self.canvas.create_line(*pts, fill="#85a3c2", width=2, smooth=True, tags="trace")
 
+    def _local_to_canvas(self, cx: float, cy: float, heading: float, lx: float, ly: float):
+        wx = lx * math.cos(heading) - ly * math.sin(heading)
+        wy = lx * math.sin(heading) + ly * math.cos(heading)
+        return cx + wx, cy - wy
+
+    def _local_poly(self, cx: float, cy: float, heading: float, points):
+        out = []
+        for lx, ly in points:
+            px, py = self._local_to_canvas(cx, cy, heading, lx, ly)
+            out.extend([px, py])
+        return out
+
+    def _draw_wheel(self, cx: float, cy: float, heading: float, lx: float, ly: float):
+        px, py = self._local_to_canvas(cx, cy, heading, lx, ly)
+        r = 18
+        self.canvas.create_oval(px - r, py - r, px + r, py + r, fill="#f4c62e", outline="#b08913", width=2, tags="robot")
+        self.canvas.create_oval(px - 8, py - 8, px + 8, py + 8, fill="#2a2f33", outline="#111417", tags="robot")
+        # Roller hint lines for mecanum look.
+        for ang in (heading + math.radians(35), heading - math.radians(35)):
+            dx = math.cos(ang) * 13
+            dy = math.sin(ang) * 13
+            self.canvas.create_line(px - dx, py + dy, px + dx, py - dy, fill="#22282d", width=2, tags="robot")
+
     def draw_robot(self, st):
         self.canvas.delete("robot")
         r = st["robot"]
@@ -139,28 +162,76 @@ class SimApp:
         heading = math.radians(float(r["heading_deg"]))
 
         cx, cy = self.world_to_canvas(x, y)
-        body_w = 0.30 * SCALE
-        body_h = 0.22 * SCALE
+        body_w = 0.34 * SCALE
+        body_l = 0.50 * SCALE
 
-        local = [(-body_w / 2, -body_h / 2), (body_w / 2, -body_h / 2), (body_w / 2, body_h / 2), (-body_w / 2, body_h / 2)]
-        pts = []
-        for px, py in local:
-            wx = px * math.cos(heading) - py * math.sin(heading)
-            wy = px * math.sin(heading) + py * math.cos(heading)
-            pts.extend([cx + wx, cy + wy])
+        # Wheels
+        wheel_dx = body_w * 0.62
+        wheel_dy = body_l * 0.46
+        self._draw_wheel(cx, cy, heading, -wheel_dx, +wheel_dy)
+        self._draw_wheel(cx, cy, heading, +wheel_dx, +wheel_dy)
+        self._draw_wheel(cx, cy, heading, -wheel_dx, -wheel_dy)
+        self._draw_wheel(cx, cy, heading, +wheel_dx, -wheel_dy)
 
-        self.canvas.create_polygon(*pts, fill="#ffcc66", outline="#b9892d", width=2, tags="robot")
+        # Lower black chassis.
+        base_poly = [
+            (-body_w * 0.62, -body_l * 0.48),
+            (+body_w * 0.62, -body_l * 0.48),
+            (+body_w * 0.62, +body_l * 0.20),
+            (-body_w * 0.62, +body_l * 0.20),
+        ]
+        self.canvas.create_polygon(
+            *self._local_poly(cx, cy, heading, base_poly),
+            fill="#1d2329",
+            outline="#0f1317",
+            width=2,
+            tags="robot",
+        )
 
-        fx = cx + math.cos(heading) * body_w * 0.6
-        fy = cy + math.sin(heading) * body_w * 0.6
-        self.canvas.create_line(cx, cy, fx, fy, fill="#2c3e50", width=3, arrow="last", tags="robot")
+        # Upper deck.
+        deck_poly = [
+            (-body_w * 0.45, -body_l * 0.05),
+            (+body_w * 0.45, -body_l * 0.05),
+            (+body_w * 0.45, +body_l * 0.36),
+            (-body_w * 0.45, +body_l * 0.36),
+        ]
+        self.canvas.create_polygon(
+            *self._local_poly(cx, cy, heading, deck_poly),
+            fill="#2a3138",
+            outline="#11161b",
+            width=2,
+            tags="robot",
+        )
+
+        # Front bumper plate.
+        bumper_poly = [
+            (-body_w * 0.72, +body_l * 0.20),
+            (+body_w * 0.72, +body_l * 0.20),
+            (+body_w * 0.72, +body_l * 0.42),
+            (-body_w * 0.72, +body_l * 0.42),
+        ]
+        self.canvas.create_polygon(
+            *self._local_poly(cx, cy, heading, bumper_poly),
+            fill="#20262d",
+            outline="#0e1216",
+            width=2,
+            tags="robot",
+        )
 
         cam = st["camera"]
         yaw_norm = (int(cam.get("yaw", 1500)) - 1500) / 500.0
         pitch_norm = (int(cam.get("pitch", 1500)) - 1500) / 500.0
-        gx = cx + yaw_norm * 26.0
-        gy = cy - body_h * 0.20 + pitch_norm * 18.0
-        self.canvas.create_oval(gx - 10, gy - 10, gx + 10, gy + 10, fill="#2d3436", outline="#111", tags="robot")
+        mast_x, mast_y = self._local_to_canvas(cx, cy, heading, 0.0, body_l * 0.30)
+        self.canvas.create_rectangle(
+            mast_x - 9, mast_y - 24, mast_x + 9, mast_y + 6, fill="#2a3138", outline="#101418", tags="robot"
+        )
+
+        # Camera head and moving lens.
+        head_x, head_y = self._local_to_canvas(cx, cy, heading, yaw_norm * 16.0, body_l * 0.40 + pitch_norm * 10.0)
+        self.canvas.create_rectangle(
+            head_x - 14, head_y - 12, head_x + 14, head_y + 12, fill="#252c33", outline="#0f1317", tags="robot"
+        )
+        self.canvas.create_oval(head_x - 6, head_y - 6, head_x + 6, head_y + 6, fill="#74b9ff", outline="#1b4f72", tags="robot")
 
         eyes = st["eyes"]
         l = eyes.get("left", [0, 0, 0])
@@ -168,11 +239,17 @@ class SimApp:
         lc = "#%02x%02x%02x" % (int(l[0]), int(l[1]), int(l[2]))
         rc = "#%02x%02x%02x" % (int(rr[0]), int(rr[1]), int(rr[2]))
 
-        ex = cx + math.cos(heading) * body_w * 0.40
-        ey = cy + math.sin(heading) * body_w * 0.40
-        off = 16
-        self.canvas.create_oval(ex - 7, ey - off - 7, ex + 7, ey - off + 7, fill=lc, outline="#222", tags="robot")
-        self.canvas.create_oval(ex - 7, ey + off - 7, ex + 7, ey + off + 7, fill=rc, outline="#222", tags="robot")
+        # Sonar "eyes" at front.
+        lcx, lcy = self._local_to_canvas(cx, cy, heading, -body_w * 0.20, body_l * 0.28)
+        rcx, rcy = self._local_to_canvas(cx, cy, heading, +body_w * 0.20, body_l * 0.28)
+        for ex, ey, col in ((lcx, lcy, lc), (rcx, rcy, rc)):
+            self.canvas.create_oval(ex - 9, ey - 9, ex + 9, ey + 9, fill=col, outline="#cfd8dc", width=2, tags="robot")
+            self.canvas.create_oval(ex - 3, ey - 3, ex + 3, ey + 3, fill="#101820", outline="", tags="robot")
+
+        # Forward arrow.
+        fx0, fy0 = self._local_to_canvas(cx, cy, heading, 0.0, body_l * 0.10)
+        fx1, fy1 = self._local_to_canvas(cx, cy, heading, 0.0, body_l * 0.62)
+        self.canvas.create_line(fx0, fy0, fx1, fy1, fill="#2c3e50", width=3, arrow="last", tags="robot")
 
     def _rgb_to_hex(self, rgb):
         return "#%02x%02x%02x" % (int(rgb[0]), int(rgb[1]), int(rgb[2]))
@@ -188,14 +265,14 @@ class SimApp:
         ox = 122.0
         oy = 124.0
 
-        # Platform cube (pseudo-3D robot top).
-        front = [(-48, -8, 0), (48, -8, 0), (48, 20, 0), (-48, 20, 0)]
-        top = [(-48, 20, 0), (48, 20, 0), (48, 20, 22), (-48, 20, 22)]
-        side = [(48, -8, 0), (48, 20, 0), (48, 20, 22), (48, -8, 22)]
+        # Black body (pseudo-3D)
+        front = [(-58, -8, 0), (58, -8, 0), (58, 18, 0), (-58, 18, 0)]
+        top = [(-58, 18, 0), (58, 18, 0), (58, 18, 22), (-58, 18, 22)]
+        side = [(58, -8, 0), (58, 18, 0), (58, 18, 22), (58, -8, 22)]
         for poly, fill, outline in (
-            (front, "#d4b06c", "#9a7e47"),
-            (top, "#f2d292", "#9a7e47"),
-            (side, "#c99f53", "#8e703d"),
+            (front, "#1f252c", "#0f1418"),
+            (top, "#2b323a", "#12171c"),
+            (side, "#181d23", "#0d1114"),
         ):
             pts = []
             for x, y, z in poly:
@@ -203,15 +280,23 @@ class SimApp:
                 pts.extend([sx, sy])
             c.create_polygon(*pts, fill=fill, outline=outline, width=1.5)
 
+        # Yellow wheels hint.
+        for wx in (-70, 70):
+            sx, sy = self._proj3(wx, -4, 2, ox, oy)
+            c.create_oval(sx - 13, sy - 13, sx + 13, sy + 13, fill="#f4c62e", outline="#a67f11", width=2)
+            c.create_oval(sx - 5, sy - 5, sx + 5, sy + 5, fill="#1f252c", outline="")
+
         # Eyes on robot front.
-        lcx, lcy = self._proj3(-22, 10, 2, ox, oy)
-        rcx, rcy = self._proj3(22, 10, 2, ox, oy)
+        lcx, lcy = self._proj3(-16, 7, 2, ox, oy)
+        rcx, rcy = self._proj3(16, 7, 2, ox, oy)
         c.create_oval(lcx - 7, lcy - 7, lcx + 7, lcy + 7, fill=left_hex, outline="#2d3436")
         c.create_oval(rcx - 7, rcy - 7, rcx + 7, rcy + 7, fill=right_hex, outline="#2d3436")
 
-        # Gimbal base.
-        bx, by = self._proj3(0, 26, 10, ox, oy)
-        c.create_oval(bx - 13, by - 9, bx + 13, by + 9, fill="#506d85", outline="#2f4152")
+        # Camera mast + gimbal.
+        mx, my = self._proj3(0, 24, 10, ox, oy)
+        c.create_rectangle(mx - 6, my - 18, mx + 6, my + 4, fill="#222930", outline="#0f151a")
+        bx, by = self._proj3(0, 30, 10, ox, oy)
+        c.create_oval(bx - 13, by - 9, bx + 13, by + 9, fill="#3c4d5b", outline="#23313a")
 
         # Camera lens position responds to yaw/pitch.
         lx = bx + yaw_offset * 34.0
@@ -226,7 +311,7 @@ class SimApp:
         c.create_text(ax0, ay0 - 10, text="View Dir", fill="#546e7a", font=("TkDefaultFont", 8))
         c.create_line(ax0, ay0, ax0 + yaw_offset * 26.0, ay0 + pitch_offset * 18.0, arrow="last", width=2, fill="#1976d2")
 
-        c.create_text(36, 148, text="Robot body", fill="#6b7280", anchor="w", font=("TkDefaultFont", 8))
+        c.create_text(28, 148, text="TurboPi style", fill="#6b7280", anchor="w", font=("TkDefaultFont", 8))
 
     def update_side_panel(self, st):
         eyes = st.get("eyes", {})
