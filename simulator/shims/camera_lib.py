@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Optional
 
 from simulator.core.sim_state import load_state, save_state
@@ -39,27 +40,30 @@ class Camera:
     def _clamp(self, pos: int) -> int:
         return max(self.min_pos, min(self.max_pos, int(pos)))
 
-    def _set(self, key: str, pos: int):
+    def _set(self, key: str, pos: int, speed_s: Optional[float] = None):
         st = load_state()
         st["camera"][key] = self._clamp(pos)
         st["last_command"] = f"camera_{key}"
         save_state(st)
+        dt = float(self.speed_s if speed_s is None else speed_s)
+        if dt > 0:
+            time.sleep(dt)
 
     def _send(self, sid: int, pos: int, speed_s: Optional[float] = None):
         if int(sid) == self.nod_id:
-            self._set("pitch", pos)
+            self._set("pitch", pos, speed_s=speed_s)
         elif int(sid) == self.shake_id:
-            self._set("yaw", pos)
+            self._set("yaw", pos, speed_s=speed_s)
 
     def center_all(self, speed_s: Optional[float] = None):
-        self._set("pitch", self.center)
-        self._set("yaw", self.center)
+        self._set("pitch", self.center, speed_s=speed_s)
+        self._set("yaw", self.center, speed_s=speed_s)
 
     def set_pitch(self, pos: int, speed_s: Optional[float] = None):
-        self._set("pitch", pos)
+        self._set("pitch", pos, speed_s=speed_s)
 
     def set_yaw(self, pos: int, speed_s: Optional[float] = None):
-        self._set("yaw", pos)
+        self._set("yaw", pos, speed_s=speed_s)
 
     def nod(self, depth: int = 300, speed_s: Optional[float] = None):
         c = self.center
@@ -85,18 +89,22 @@ class Camera:
 
     def glance_left(self, amplitude: int = 250, hold_s: float = 0.15):
         self.set_yaw(self.center - int(amplitude))
+        time.sleep(max(0.0, float(hold_s)))
         self.set_yaw(self.center)
 
     def glance_right(self, amplitude: int = 250, hold_s: float = 0.15):
         self.set_yaw(self.center + int(amplitude))
+        time.sleep(max(0.0, float(hold_s)))
         self.set_yaw(self.center)
 
     def look_up(self, amplitude: int = 250, hold_s: float = 0.15):
         self.set_pitch(self.center + int(amplitude))
+        time.sleep(max(0.0, float(hold_s)))
         self.set_pitch(self.center)
 
     def look_down(self, amplitude: int = 250, hold_s: float = 0.15):
         self.set_pitch(self.center - int(amplitude))
+        time.sleep(max(0.0, float(hold_s)))
         self.set_pitch(self.center)
 
 

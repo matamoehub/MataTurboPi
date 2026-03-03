@@ -388,8 +388,8 @@ class SimApp:
 
         # Pan-tilt camera bracket + board responding to yaw/pitch.
         # Accentuated movement so left/right/up/down is easy to read.
-        cam_cx = 120 + yaw_offset * 44.0 + math.sin(phase * 1.7) * (0.6 + 1.4 * motion_level)
-        cam_cy = 52 + pitch_offset * 28.0 + math.sin(phase * 1.3 + 0.8) * (0.4 + 0.9 * motion_level)
+        cam_cx = 120 + yaw_offset * 56.0
+        cam_cy = 52 + pitch_offset * 34.0
         c.create_rectangle(cam_cx - 24, cam_cy - 17, cam_cx + 24, cam_cy + 17, fill="#1b2127", outline="#0e1318", width=2)
         c.create_line(cam_cx - 24, cam_cy + 14, cam_cx - 34, cam_cy + 22, fill="#2a323a", width=3)
         c.create_line(cam_cx + 24, cam_cy + 14, cam_cx + 34, cam_cy + 22, fill="#2a323a", width=3)
