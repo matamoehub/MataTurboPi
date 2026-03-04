@@ -1,11 +1,16 @@
 {
   "id": "lesson02",
-  "title": "Lesson 2 — Line Following",
-  "description": "Use line sensors to make decisions and follow a track. Reuse movement from Lesson 1.",
+  "title": "Lesson 2 — Character Animation",
+  "description": "Build animated robot sequences by combining movement, eyes, camera gestures, voice, and horn.",
   "levels": [
     {
       "id": "level_1",
-      "title": "Level 1 (Beginner)",
+      "title": "Level 1 (Examples)",
+      "entry": "Lesson02.ipynb"
+    },
+    {
+      "id": "level_2",
+      "title": "Level 2 (Build Your Sequence)",
       "entry": "Lesson02.ipynb"
     }
   ]
