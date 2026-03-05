@@ -91,6 +91,12 @@ def drift_left(seconds: float = None, speed: float = None, turn_blend: float = N
     Drift left in an arc.
     turn_blend: 0..1 (0 = pure strafe left, 1 = heavy spin)
     """
+    # Classroom-friendly shorthand:
+    # drift_left(seconds, 0.55) -> treat 2nd positional as turn_blend.
+    if turn_blend is None and speed is not None and -1.0 <= float(speed) <= 1.0:
+        turn_blend = float(speed)
+        speed = None
+
     s = float(BASE_SPEED if speed is None else speed)
     t = float(_DRIFT_SECONDS_DEFAULT if seconds is None else seconds)
     k = float(_DRIFT_TURN_BLEND if turn_blend is None else turn_blend)
@@ -109,6 +115,12 @@ def drift_right(seconds: float = None, speed: float = None, turn_blend: float = 
     """
     Drift right in an arc.
     """
+    # Classroom-friendly shorthand:
+    # drift_right(seconds, 0.55) -> treat 2nd positional as turn_blend.
+    if turn_blend is None and speed is not None and -1.0 <= float(speed) <= 1.0:
+        turn_blend = float(speed)
+        speed = None
+
     s = float(BASE_SPEED if speed is None else speed)
     t = float(_DRIFT_SECONDS_DEFAULT if seconds is None else seconds)
     k = float(_DRIFT_TURN_BLEND if turn_blend is None else turn_blend)
