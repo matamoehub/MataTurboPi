@@ -8,6 +8,7 @@ Use in a notebook cell:
 
 from pathlib import Path
 import importlib
+import importlib.util
 import os
 import re
 import sys
@@ -129,7 +130,14 @@ def setup(
         if s not in sys.path:
             sys.path.insert(0, s)
 
-    import bootstrap
+    # Load bootstrap from this repo path explicitly to avoid collisions
+    # with unrelated "bootstrap" modules in sys.path.
+    bootstrap_path = common_lib / "bootstrap.py"
+    spec = importlib.util.spec_from_file_location("lesson_bootstrap", str(bootstrap_path))
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load bootstrap from {bootstrap_path}")
+    bootstrap = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bootstrap)
 
     domain = _resolve_domain(default_domain)
     # Ensure downstream ROS imports pick the intended domain.
@@ -137,8 +145,12 @@ def setup(
 
     if hasattr(bootstrap, "init"):
         info = bootstrap.init(default_domain=domain, verbose=verbose)
-    else:
+    elif hasattr(bootstrap, "bootstrap"):
         info = bootstrap.bootstrap(default_domain=domain, verbose=verbose)
+    else:
+        raise AttributeError(
+            f"bootstrap module missing both init() and bootstrap(): {bootstrap_path}"
+        )
 
     loaded: Dict[str, object] = {}
     if preload_common:

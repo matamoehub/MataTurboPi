@@ -6,9 +6,56 @@ _setup(verbose=False)
 import time
 import importlib
 
-try:
-    import student_animation_lib
-except Exception:
-    student_animation_lib = None
+import robot_moves as rm
 
-anim = student_animation_lib.get_animation_lib() if student_animation_lib else None
+if hasattr(rm, "RobotMoves"):
+    bot = rm.RobotMoves(base_speed=300, rate_hz=20)
+else:
+    bot = rm
+
+try:
+    import eyes_lib
+    eyes = eyes_lib.get_eyes()
+except Exception:
+    eyes_lib = None
+    eyes = None
+
+try:
+    import camera_lib
+    cam = camera_lib.get_camera()
+except Exception:
+    camera_lib = None
+    cam = None
+
+try:
+    import tts_lib as tts
+except Exception:
+    tts = None
+
+try:
+    import buzzer_lib
+    bz = buzzer_lib.get_buzzer()
+except Exception:
+    buzzer_lib = None
+    bz = None
+
+try:
+    import student_animation_lib as al
+    importlib.reload(al)
+except Exception:
+    al = None
+
+anim = al.get_animation_lib(robot=bot, eyes=eyes, camera=cam, tts=tts, base_speed=300) if al else None
+
+
+def show_lesson_status():
+    print("robot_moves:", getattr(rm, "__file__", "<built-in>"))
+    print("bot type:", type(bot).__name__)
+    print("eyes:", "ready" if eyes is not None else "unavailable")
+    print("camera:", "ready" if cam is not None else "unavailable")
+    print("tts:", "ready" if tts is not None else "unavailable")
+    print("buzzer:", "ready" if bz is not None else "unavailable")
+    if al is not None:
+        print("student_animation_lib:", getattr(al, "__file__", "<built-in>"))
+    else:
+        print("student_animation_lib: unavailable")

@@ -6,7 +6,16 @@ Learn the animation library by running short examples that combine:
 - eye color/blink/wink
 - camera gestures
 - voice phrases
+- buzzer sounds
 - horn
+
+## Sync vs Async (important)
+- `anim.move(...)` is synchronous (waits until move ends)
+- `anim.move_async(...)` is asynchronous (starts move and returns immediately)
+- `anim.start_blinking(...)` is asynchronous background behavior
+- `anim.start_fidget(...)` is asynchronous background behavior
+- `anim.play_phrase(..., block=True)` is synchronous
+- `anim.play_phrase(..., block=False)` is asynchronous
 
 ## What students practice
 1) Async behavior: robot movement + blinking at the same time
@@ -29,3 +38,7 @@ Ending:
 - drift left for 1 second
 - drift right for 1 second
 - use `turn_blend=0.95` for both
+
+## Buzzer examples in this level
+- single beep for a reaction
+- short melody fragment for character mood
