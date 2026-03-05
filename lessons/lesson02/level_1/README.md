@@ -19,7 +19,7 @@ Learn the animation library by running short examples that combine:
 
 ## What students practice
 1) Async behavior: robot movement + blinking at the same time
-2) Voice selection and phrase generation for re-use
+2) Voice selection by numbered list and phrase generation for re-use
 3) Character acting with camera gestures and fidget movement
 4) Building a short sequence with a beginning, middle, and ending move
 
