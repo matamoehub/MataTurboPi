@@ -321,6 +321,28 @@ class AnimationLibrary:
         self._fidget_thread = None
         self._fidget_stop.clear()
 
+    def stop(self):
+        """
+        Stop background animation threads and stop robot motors.
+        Equivalent intent to bot.stop().
+        """
+        self.stop_fidget()
+        self.stop_blinking()
+        self._ensure_backends()
+        if self.robot is None:
+            return
+
+        fn = getattr(self.robot, "stop", None)
+        if callable(fn):
+            fn()
+            return
+        fn = getattr(self.robot, "all_stop", None)
+        if callable(fn):
+            fn()
+
+    def stop_all(self):
+        self.stop()
+
     # ---------------- extras ----------------
     def horn_normal(self, block: bool = True):
         self._ensure_backends()
@@ -398,6 +420,12 @@ def get_animation_lib(**kwargs) -> AnimationLibrary:
         if "robot" in kwargs and kwargs["robot"] is not None:
             inst.robot = kwargs["robot"]
             inst._robot_error = None
+        if "eyes" in kwargs:
+            inst.eyes = kwargs["eyes"]
+        if "camera" in kwargs:
+            inst.camera = kwargs["camera"]
+        if "tts" in kwargs:
+            inst.tts = kwargs["tts"]
         if "base_speed" in kwargs and kwargs["base_speed"] is not None:
             inst.base_speed = float(kwargs["base_speed"])
         if "eye_color" in kwargs and kwargs["eye_color"] is not None:

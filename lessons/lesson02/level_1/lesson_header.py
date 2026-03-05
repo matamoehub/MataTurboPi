@@ -57,5 +57,9 @@ def show_lesson_status():
     print("buzzer:", "ready" if bz is not None else "unavailable")
     if al is not None:
         print("student_animation_lib:", getattr(al, "__file__", "<built-in>"))
+        if anim is not None:
+            print("anim.eyes:", "ready" if getattr(anim, "eyes", None) is not None else "unavailable")
+            print("anim.camera:", "ready" if getattr(anim, "camera", None) is not None else "unavailable")
+            print("anim.tts:", "ready" if getattr(anim, "tts", None) is not None else "unavailable")
     else:
         print("student_animation_lib: unavailable")
