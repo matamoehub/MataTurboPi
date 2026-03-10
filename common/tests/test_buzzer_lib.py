@@ -140,8 +140,12 @@ def test_beep_waits_for_duration_then_turns_off(monkeypatch):
     monkeypatch.setattr(buzzer_lib.time, "sleep", lambda s: events.append(("sleep", s)))
     buzzer_lib.Buzzer.beep(_Fake(), freq=2000, duration_s=0.25, gap_s=0.05)
     assert events == [
-        ("publish", 2000, 0.25, 0.0, 1),
-        ("sleep", 0.25),
+        ("publish", 2000, buzzer_lib.BUZZER_SUSTAIN_CHUNK_S, 0.0, 1),
+        ("sleep", buzzer_lib.BUZZER_SUSTAIN_CHUNK_S),
+        ("publish", 2000, buzzer_lib.BUZZER_SUSTAIN_CHUNK_S, 0.0, 1),
+        ("sleep", buzzer_lib.BUZZER_SUSTAIN_CHUNK_S),
+        ("publish", 2000, 0.25 - 2 * buzzer_lib.BUZZER_SUSTAIN_CHUNK_S, 0.0, 1),
+        ("sleep", 0.25 - 2 * buzzer_lib.BUZZER_SUSTAIN_CHUNK_S),
         ("off",),
         ("sleep", 0.05),
     ]

@@ -25,6 +25,7 @@ DEFAULT_TOPIC = os.getenv("BUZZER_TOPIC", "/ros_robot_controller/set_buzzer")
 FLUSH_SPIN_S = float(os.getenv("BUZZER_FLUSH_SPIN_S", "0.08"))
 POST_NOTE_GAP_S = float(os.getenv("BUZZER_POST_NOTE_GAP_S", "0.01"))
 DEFAULT_BPM = int(os.getenv("BUZZER_DEFAULT_BPM", "120"))
+BUZZER_SUSTAIN_CHUNK_S = float(os.getenv("BUZZER_SUSTAIN_CHUNK_S", "0.08"))
 
 _SEMITONES: Dict[str, int] = {
     "C": 0,
@@ -158,11 +159,15 @@ class Buzzer(Node):
         duration_s = max(0.0, float(duration_s))
         if duration_s <= 0:
             return
-        self._publish_buzzer(freq=int(freq), on_time_s=duration_s, off_time_s=0.0, repeat=1)
-        # Some controller images do not enforce note length from the message alone.
-        # Block locally for the requested duration, then send an explicit off command
-        # so beats and BPM affect audible timing consistently.
-        time.sleep(duration_s)
+        # Some controller images ignore long on_time values. Sustain the note by
+        # reissuing short tone chunks until the requested duration has elapsed.
+        remain_s = duration_s
+        chunk_s = max(0.02, float(BUZZER_SUSTAIN_CHUNK_S))
+        while remain_s > 0:
+            on_s = min(chunk_s, remain_s)
+            self._publish_buzzer(freq=int(freq), on_time_s=on_s, off_time_s=0.0, repeat=1)
+            time.sleep(on_s)
+            remain_s -= on_s
         self.off()
         if gap_s > 0:
             time.sleep(float(gap_s))
