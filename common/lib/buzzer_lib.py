@@ -169,12 +169,16 @@ class Buzzer(Node):
 
     def play_note(self, note: str, beats: float = 1.0, bpm: int = DEFAULT_BPM) -> None:
         beat_s = 60.0 / float(max(1, int(bpm)))
-        duration_s = float(beats) * beat_s
+        total_s = max(0.0, float(beats) * beat_s)
         freq = note_to_freq(note)
         if freq <= 0:
-            time.sleep(max(0.0, duration_s))
+            time.sleep(total_s)
             return
-        self.beep(freq=freq, duration_s=duration_s, gap_s=POST_NOTE_GAP_S)
+        # Make the total note time match beats * beat_s.
+        # The release gap is carved out of the beat instead of added on top.
+        gap_s = min(float(POST_NOTE_GAP_S), total_s * 0.25)
+        on_s = max(0.0, total_s - gap_s)
+        self.beep(freq=freq, duration_s=on_s, gap_s=gap_s)
 
     def play_notes(self, score: str, bpm: int = DEFAULT_BPM) -> None:
         """

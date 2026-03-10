@@ -156,4 +156,4 @@ def test_play_note_uses_bpm_for_tone_duration():
             calls.append((freq, duration_s, gap_s))
 
     buzzer_lib.Buzzer.play_note(_Fake(), "A4", beats=2.0, bpm=120)
-    assert calls == [(440, 1.0, buzzer_lib.POST_NOTE_GAP_S)]
+    assert calls == [(440, 1.0 - buzzer_lib.POST_NOTE_GAP_S, buzzer_lib.POST_NOTE_GAP_S)]
