@@ -171,6 +171,18 @@ def test_play_note_uses_bpm_for_tone_duration():
             calls.append((freq, duration_s, gap_s))
 
     buzzer_lib.Buzzer.play_note(_Fake(), "A4", beats=2.0, bpm=120)
+    assert calls == [(440, 1.0 - buzzer_lib.POST_NOTE_GAP_S, buzzer_lib.POST_NOTE_GAP_S)]
+
+
+def test_play_note_music_mode_transposes_into_buzzer_band():
+    buzzer_lib = _load_buzzer_lib_with_stubs()
+    calls = []
+
+    class _Fake:
+        def beep(self, freq, duration_s, gap_s):
+            calls.append((freq, duration_s, gap_s))
+
+    buzzer_lib.Buzzer.play_note_music_mode(_Fake(), "A4", beats=2.0, bpm=120)
     assert len(calls) == 1
     freq, duration_s, gap_s = calls[0]
     assert buzzer_lib.BUZZER_MIN_FREQ <= freq <= buzzer_lib.BUZZER_MAX_FREQ

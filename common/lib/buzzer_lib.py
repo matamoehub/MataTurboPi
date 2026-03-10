@@ -8,6 +8,7 @@ Examples:
     bz = buzzer_lib.get_buzzer()
     bz.beep(2000, 0.2)
     bz.play_notes("C4:1 D4:1 E4:2 R:1 C5:2", bpm=120)
+    bz.play_notes_music_mode("C4:1 D4:1 E4:2", bpm=120)
 """
 
 import os
@@ -200,7 +201,7 @@ class Buzzer(Node):
     def play_note(self, note: str, beats: float = 1.0, bpm: int = DEFAULT_BPM) -> None:
         beat_s = 60.0 / float(max(1, int(bpm)))
         total_s = max(0.0, float(beats) * beat_s)
-        freq = note_to_buzzer_freq(note)
+        freq = note_to_freq(note)
         if freq <= 0:
             time.sleep(total_s)
             return
@@ -225,6 +226,34 @@ class Buzzer(Node):
                 else:
                     n, beats = token, 1.0
                 self.play_note(n, beats=beats, bpm=bpm)
+        finally:
+            self.off()
+
+    def play_note_music_mode(self, note: str, beats: float = 1.0, bpm: int = DEFAULT_BPM) -> None:
+        """
+        Music-mode playback that transposes notes into the buzzer-friendly band.
+        Use this when the physical buzzer cannot reproduce lower octaves reliably.
+        """
+        beat_s = 60.0 / float(max(1, int(bpm)))
+        total_s = max(0.0, float(beats) * beat_s)
+        freq = note_to_buzzer_freq(note)
+        if freq <= 0:
+            time.sleep(total_s)
+            return
+        gap_s = min(float(POST_NOTE_GAP_S), total_s * 0.25)
+        on_s = max(0.0, total_s - gap_s)
+        self.beep(freq=freq, duration_s=on_s, gap_s=gap_s)
+
+    def play_notes_music_mode(self, score: str, bpm: int = DEFAULT_BPM) -> None:
+        tokens = [t for t in str(score).split() if t.strip()]
+        try:
+            for token in tokens:
+                if ":" in token:
+                    n, beats_txt = token.split(":", 1)
+                    beats = float(beats_txt)
+                else:
+                    n, beats = token, 1.0
+                self.play_note_music_mode(n, beats=beats, bpm=bpm)
         finally:
             self.off()
 
