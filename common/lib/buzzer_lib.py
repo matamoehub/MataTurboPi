@@ -26,6 +26,8 @@ FLUSH_SPIN_S = float(os.getenv("BUZZER_FLUSH_SPIN_S", "0.08"))
 POST_NOTE_GAP_S = float(os.getenv("BUZZER_POST_NOTE_GAP_S", "0.01"))
 DEFAULT_BPM = int(os.getenv("BUZZER_DEFAULT_BPM", "120"))
 BUZZER_SUSTAIN_CHUNK_S = float(os.getenv("BUZZER_SUSTAIN_CHUNK_S", "0.08"))
+BUZZER_MIN_FREQ = int(os.getenv("BUZZER_MIN_FREQ", "2000"))
+BUZZER_MAX_FREQ = int(os.getenv("BUZZER_MAX_FREQ", "4000"))
 
 _SEMITONES: Dict[str, int] = {
     "C": 0,
@@ -89,6 +91,29 @@ def note_to_freq(note: str) -> int:
     midi = (octave + 1) * 12 + _SEMITONES[key]
     hz = 440.0 * (2.0 ** ((midi - 69) / 12.0))
     return int(round(max(1.0, hz)))
+
+
+def note_to_buzzer_freq(note: str, min_freq: int = BUZZER_MIN_FREQ, max_freq: int = BUZZER_MAX_FREQ) -> int:
+    """
+    Convert a musical note to a buzzer-safe frequency.
+    The TurboPi buzzer behaves more reliably in a high-frequency band, so notes
+    are transposed upward by octaves until they fit inside the supported range.
+    """
+    hz = note_to_freq(note)
+    if hz <= 0:
+        return 0
+
+    lo = max(1, int(min_freq))
+    hi = max(lo, int(max_freq))
+
+    while hz < lo:
+        hz *= 2
+    while hz > hi and hz > 1:
+        hz /= 2.0
+
+    # Final guard in case the configured band cannot be reached exactly.
+    hz = max(lo, min(hi, hz))
+    return int(round(hz))
 
 
 class Buzzer(Node):
@@ -175,7 +200,7 @@ class Buzzer(Node):
     def play_note(self, note: str, beats: float = 1.0, bpm: int = DEFAULT_BPM) -> None:
         beat_s = 60.0 / float(max(1, int(bpm)))
         total_s = max(0.0, float(beats) * beat_s)
-        freq = note_to_freq(note)
+        freq = note_to_buzzer_freq(note)
         if freq <= 0:
             time.sleep(total_s)
             return

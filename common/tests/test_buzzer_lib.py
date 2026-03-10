@@ -126,6 +126,17 @@ def test_note_to_freq_c4_is_close_to_reference():
     assert math.isclose(buzzer_lib.note_to_freq("C4"), 262, rel_tol=0, abs_tol=1)
 
 
+def test_note_to_buzzer_freq_transposes_into_supported_band():
+    buzzer_lib = _load_buzzer_lib_with_stubs()
+    hz = buzzer_lib.note_to_buzzer_freq("C4")
+    assert buzzer_lib.BUZZER_MIN_FREQ <= hz <= buzzer_lib.BUZZER_MAX_FREQ
+
+
+def test_note_to_buzzer_freq_rest_stays_silent():
+    buzzer_lib = _load_buzzer_lib_with_stubs()
+    assert buzzer_lib.note_to_buzzer_freq("R") == 0
+
+
 def test_beep_waits_for_duration_then_turns_off(monkeypatch):
     buzzer_lib = _load_buzzer_lib_with_stubs()
     events = []
@@ -160,4 +171,8 @@ def test_play_note_uses_bpm_for_tone_duration():
             calls.append((freq, duration_s, gap_s))
 
     buzzer_lib.Buzzer.play_note(_Fake(), "A4", beats=2.0, bpm=120)
-    assert calls == [(440, 1.0 - buzzer_lib.POST_NOTE_GAP_S, buzzer_lib.POST_NOTE_GAP_S)]
+    assert len(calls) == 1
+    freq, duration_s, gap_s = calls[0]
+    assert buzzer_lib.BUZZER_MIN_FREQ <= freq <= buzzer_lib.BUZZER_MAX_FREQ
+    assert duration_s == 1.0 - buzzer_lib.POST_NOTE_GAP_S
+    assert gap_s == buzzer_lib.POST_NOTE_GAP_S
