@@ -441,14 +441,29 @@ class AnimationLibrary:
         self._ensure_backends()
         if self.robot is None:
             return
+        called = False
 
         fn = getattr(self.robot, "stop", None)
         if callable(fn):
             fn()
-            return
-        fn = getattr(self.robot, "all_stop", None)
+            called = True
+
+        fn = getattr(self.robot, "emergency_stop", None)
         if callable(fn):
             fn()
+            called = True
+
+        fn = getattr(self.robot, "all_stop", None)
+        if callable(fn):
+            try:
+                fn()
+            except TypeError:
+                pass
+            else:
+                called = True
+
+        if not called:
+            self._status("stop: no robot stop API found")
 
     def stop_all(self):
         self.stop()

@@ -159,6 +159,11 @@ class Buzzer(Node):
         if duration_s <= 0:
             return
         self._publish_buzzer(freq=int(freq), on_time_s=duration_s, off_time_s=0.0, repeat=1)
+        # Some controller images do not enforce note length from the message alone.
+        # Block locally for the requested duration, then send an explicit off command
+        # so beats and BPM affect audible timing consistently.
+        time.sleep(duration_s)
+        self.off()
         if gap_s > 0:
             time.sleep(float(gap_s))
 
