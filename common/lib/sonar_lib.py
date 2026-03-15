@@ -26,7 +26,7 @@ else:
     _SONAR_IMPORT_ERROR = None
 
 
-DEFAULT_TOPIC = "sonar_controller/get_distance"
+DEFAULT_TOPIC = os.environ.get("SONAR_TOPIC", "/sonar_controller/get_distance").strip() or "/sonar_controller/get_distance"
 
 
 def _require_runtime() -> None:
@@ -129,7 +129,10 @@ def get_sonar(topic: str = DEFAULT_TOPIC, window: int = 5) -> Sonar:
     key = "sonar_lib:sonar"
     inst = get_process_singleton(key)
     if inst is None:
-        inst = set_process_singleton(key, Sonar(topic=topic, window=window))
+        resolved_topic = str(topic or DEFAULT_TOPIC).strip() or DEFAULT_TOPIC
+        if not resolved_topic.startswith("/"):
+            resolved_topic = f"/{resolved_topic}"
+        inst = set_process_singleton(key, Sonar(topic=resolved_topic, window=window))
     return inst
 
 
