@@ -26,6 +26,10 @@ COMMON_MODULES = [
     "infrared_lib",
     "line_follower_lib",
     "buzzer_lib",
+    "sonar_lib",
+    "avoidance_lib",
+    "tracking_lib",
+    "qrcode_lib",
 ]
 
 BACKEND_MODULES = [

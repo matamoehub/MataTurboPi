@@ -1,0 +1,12 @@
+{
+  "id": "lesson05",
+  "title": "Lesson 5 — Library Test Bench",
+  "description": "Load and test the robot movement, eyes, camera, speech, buzzer, ultrasonic, line following, tracking, QR, and animation libraries from one notebook.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Test Bench)",
+      "entry": "Lesson05.ipynb"
+    }
+  ]
+}
