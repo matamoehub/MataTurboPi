@@ -1,0 +1,12 @@
+{
+  "id": "lesson06",
+  "title": "Lesson 6 — Project",
+  "description": "Use movement, eyes, speech, buzzer, camera, and sonar to build a creative obstacle-course robot performance.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Project)",
+      "entry": "Lesson06.ipynb"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "lesson07",
+  "title": "Lesson 7 — Advanced Project",
+  "description": "Use the same robot libraries to build a more autonomous obstacle-course robot with dictionary lookups, return values, and object-oriented structure.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Advanced Project)",
+      "entry": "Lesson07.ipynb"
+    }
+  ]
+}
