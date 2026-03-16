@@ -8,10 +8,15 @@ import os
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 STATE_ENV = "MATA_SIM_STATE"
 DEFAULT_STATE_FILE = "/tmp/mataturbopi_sim_state.json"
+DEFAULT_LESSON_ENV = "MATA_SIM_LESSON"
+DEFAULT_LEVEL_ENV = "MATA_SIM_LEVEL"
+ROBOT_RADIUS_M = 0.11
+SONAR_MAX_RANGE_M = 2.0
+SONAR_HALF_WIDTH_M = 0.08
 
 
 def state_path() -> Path:
@@ -22,6 +27,11 @@ def _default_state() -> Dict[str, Any]:
     return {
         "version": 1,
         "updated_at": time.time(),
+        "lesson": {
+            "id": None,
+            "level": None,
+            "course_id": "default",
+        },
         "robot": {
             "x": 0.0,
             "y": 0.0,
@@ -41,9 +51,159 @@ def _default_state() -> Dict[str, Any]:
             "min_pos": 1000,
             "max_pos": 2000,
         },
+        "sonar": {
+            "distance_m": None,
+            "distance_cm": None,
+            "distance_mm": None,
+            "max_range_m": SONAR_MAX_RANGE_M,
+        },
+        "collision": {
+            "active": False,
+            "message": "",
+            "obstacle_id": None,
+        },
+        "course": {
+            "id": "default",
+            "title": "Default Empty Course",
+            "obstacles": [],
+        },
         "trace": [],
         "last_command": "",
     }
+
+
+def _courses_dir() -> Path:
+    return Path(__file__).resolve().parent.parent / "courses"
+
+
+def _course_file_for(lesson_id: Optional[str], level_id: Optional[str]) -> Path:
+    if lesson_id and level_id:
+        candidate = _courses_dir() / f"{lesson_id}_{level_id}.json"
+        if candidate.exists():
+            return candidate
+    return _courses_dir() / "default.json"
+
+
+def _load_course_config(lesson_id: Optional[str], level_id: Optional[str]) -> Dict[str, Any]:
+    path = _course_file_for(lesson_id, level_id)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        data = {"id": "default", "title": "Default Empty Course", "robot_start": {}, "obstacles": []}
+    data.setdefault("id", "default")
+    data.setdefault("title", data["id"])
+    data.setdefault("robot_start", {})
+    data.setdefault("obstacles", [])
+    return data
+
+
+def _state_lesson_from_env() -> tuple[Optional[str], Optional[str]]:
+    lesson = os.environ.get(DEFAULT_LESSON_ENV)
+    level = os.environ.get(DEFAULT_LEVEL_ENV)
+    return (lesson.strip() if lesson else None, level.strip() if level else None)
+
+
+def _refresh_course(state: Dict[str, Any]) -> Dict[str, Any]:
+    lesson = state.get("lesson", {}) if isinstance(state.get("lesson"), dict) else {}
+    lesson_id = lesson.get("id")
+    level_id = lesson.get("level")
+    env_lesson, env_level = _state_lesson_from_env()
+    if env_lesson:
+        lesson_id = env_lesson
+    if env_level:
+        level_id = env_level
+    course = _load_course_config(lesson_id, level_id)
+    state["lesson"] = {
+        "id": lesson_id,
+        "level": level_id,
+        "course_id": course.get("id", "default"),
+    }
+    state["course"] = {
+        "id": course.get("id", "default"),
+        "title": course.get("title", course.get("id", "default")),
+        "obstacles": list(course.get("obstacles", [])),
+    }
+    start = course.get("robot_start", {}) if isinstance(course.get("robot_start"), dict) else {}
+    robot = state.get("robot", {})
+    if not state.get("trace"):
+        robot["x"] = float(start.get("x", robot.get("x", 0.0)))
+        robot["y"] = float(start.get("y", robot.get("y", 0.0)))
+        robot["heading_deg"] = float(start.get("heading_deg", robot.get("heading_deg", 0.0)))
+    return state
+
+
+def _compute_collision(state: Dict[str, Any]) -> Dict[str, Any]:
+    robot = state["robot"]
+    rx = float(robot.get("x", 0.0))
+    ry = float(robot.get("y", 0.0))
+    collided = None
+    for obs in state.get("course", {}).get("obstacles", []):
+        ox = float(obs.get("x", 0.0))
+        oy = float(obs.get("y", 0.0))
+        rr = float(obs.get("radius_m", 0.04)) + ROBOT_RADIUS_M
+        if math.hypot(ox - rx, oy - ry) <= rr:
+            collided = obs
+            break
+    if collided is None:
+        state["collision"] = {"active": False, "message": "", "obstacle_id": None}
+    else:
+        state["collision"] = {
+            "active": True,
+            "message": "Collision",
+            "obstacle_id": collided.get("id"),
+        }
+        robot["vx"] = 0.0
+        robot["vy"] = 0.0
+        robot["omega_deg_s"] = 0.0
+        state["last_command"] = "Collision"
+    return state
+
+
+def _compute_sonar(state: Dict[str, Any]) -> Dict[str, Any]:
+    robot = state["robot"]
+    rx = float(robot.get("x", 0.0))
+    ry = float(robot.get("y", 0.0))
+    heading = math.radians(float(robot.get("heading_deg", 0.0)))
+    forward_x = -math.sin(heading)
+    forward_y = math.cos(heading)
+    closest: Optional[float] = None
+    for obs in state.get("course", {}).get("obstacles", []):
+        ox = float(obs.get("x", 0.0))
+        oy = float(obs.get("y", 0.0))
+        radius = float(obs.get("radius_m", 0.04))
+        dx = ox - rx
+        dy = oy - ry
+        forward_dist = dx * forward_x + dy * forward_y
+        if forward_dist <= 0.0 or forward_dist > SONAR_MAX_RANGE_M:
+            continue
+        lateral = abs(dx * forward_y - dy * forward_x)
+        if lateral > (SONAR_HALF_WIDTH_M + radius):
+            continue
+        edge_dist = max(0.0, forward_dist - radius)
+        if closest is None or edge_dist < closest:
+            closest = edge_dist
+    if closest is None:
+        state["sonar"] = {
+            "distance_m": None,
+            "distance_cm": None,
+            "distance_mm": None,
+            "max_range_m": SONAR_MAX_RANGE_M,
+        }
+    else:
+        state["sonar"] = {
+            "distance_m": round(float(closest), 3),
+            "distance_cm": round(float(closest) * 100.0, 1),
+            "distance_mm": int(round(float(closest) * 1000.0)),
+            "max_range_m": SONAR_MAX_RANGE_M,
+        }
+    return state
+
+
+def _recompute_environment(state: Dict[str, Any]) -> Dict[str, Any]:
+    _refresh_course(state)
+    _compute_collision(state)
+    _compute_sonar(state)
+    return state
 
 
 def _atomic_write_json(path: Path, payload: Dict[str, Any]) -> None:
@@ -77,24 +237,58 @@ def load_state() -> Dict[str, Any]:
     for key in ("robot", "eyes", "camera"):
         if isinstance(data.get(key), dict):
             merged[key].update(data[key])
+    for key in ("lesson", "sonar", "collision", "course"):
+        if isinstance(data.get(key), dict):
+            merged[key].update(data[key])
     if isinstance(data.get("trace"), list):
         merged["trace"] = data["trace"]
     if isinstance(data.get("last_command"), str):
         merged["last_command"] = data["last_command"]
     merged["updated_at"] = float(data.get("updated_at", merged["updated_at"]))
+    _recompute_environment(merged)
     return merged
 
 
 def save_state(state: Dict[str, Any]) -> Dict[str, Any]:
+    _recompute_environment(state)
     state["updated_at"] = time.time()
     _atomic_write_json(state_path(), state)
     return state
 
 
 def reset_state() -> Dict[str, Any]:
+    prev = None
+    try:
+        prev = load_state()
+    except Exception:
+        prev = None
     st = _default_state()
+    if isinstance(prev, dict) and isinstance(prev.get("lesson"), dict):
+        st["lesson"].update(prev["lesson"])
+    _recompute_environment(st)
     save_state(st)
     return st
+
+
+def set_active_lesson(lesson_id: Optional[str], level_id: Optional[str]) -> Dict[str, Any]:
+    st = load_state()
+    st["lesson"] = {
+        "id": lesson_id,
+        "level": level_id,
+        "course_id": st.get("lesson", {}).get("course_id", "default"),
+    }
+    st["trace"] = []
+    _refresh_course(st)
+    course = _load_course_config(lesson_id, level_id)
+    start = course.get("robot_start", {}) if isinstance(course.get("robot_start"), dict) else {}
+    st["robot"]["x"] = float(start.get("x", 0.0))
+    st["robot"]["y"] = float(start.get("y", 0.0))
+    st["robot"]["heading_deg"] = float(start.get("heading_deg", 0.0))
+    st["robot"]["vx"] = 0.0
+    st["robot"]["vy"] = 0.0
+    st["robot"]["omega_deg_s"] = 0.0
+    st["last_command"] = f"load_course:{lesson_id or 'default'}:{level_id or 'default'}"
+    return save_state(st)
 
 
 def append_trace(state: Dict[str, Any], label: str) -> None:
@@ -146,4 +340,6 @@ def apply_robot_motion(
 
     state["last_command"] = str(label)
     append_trace(state, label)
+    _compute_collision(state)
+    _compute_sonar(state)
     return state

@@ -50,6 +50,21 @@ def setup_paths() -> dict:
         if str(path) not in sys.path:
             sys.path.insert(0, str(path))
 
+    if sim_enabled:
+        try:
+            from simulator.core.sim_state import set_active_lesson
+
+            lesson_id = None
+            level_id = None
+            for part in start.parts:
+                if part.startswith("lesson") and len(part) >= 8:
+                    lesson_id = part
+                if part.startswith("level_"):
+                    level_id = part
+            set_active_lesson(lesson_id, level_id)
+        except Exception:
+            pass
+
     return {
         "START": str(start),
         "ROOT": str(root),

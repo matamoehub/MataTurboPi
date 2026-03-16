@@ -107,6 +107,8 @@ def _move(vx: float, vy: float, omega: float, seconds: float, label: str):
         st = load_state()
         apply_robot_motion(st, vx, vy, omega, step, label)
         save_state(st)
+        if st.get("collision", {}).get("active"):
+            break
         time.sleep(step)
         elapsed += step
 

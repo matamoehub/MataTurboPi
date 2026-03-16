@@ -1,0 +1,25 @@
+{
+  "id": "lesson01_level_2",
+  "title": "Lesson 01 Level 2 - Two Cups",
+  "robot_start": {
+    "x": 0.0,
+    "y": 0.0,
+    "heading_deg": 0.0
+  },
+  "obstacles": [
+    {
+      "id": "cup_1",
+      "kind": "cup",
+      "x": 0.0,
+      "y": 0.2,
+      "radius_m": 0.04
+    },
+    {
+      "id": "cup_2",
+      "kind": "cup",
+      "x": 0.0,
+      "y": 0.4,
+      "radius_m": 0.04
+    }
+  ]
+}

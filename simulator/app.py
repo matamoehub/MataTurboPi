@@ -135,7 +135,12 @@ class SimApp:
 
         sensors_card = ttk.LabelFrame(self.panel, text="Sensors (Upcoming)", padding=(8, 8))
         sensors_card.pack(fill="x")
-        ttk.Label(sensors_card, text="Placeholder for line / distance / vision inputs").pack(anchor="w")
+        self.course_label = ttk.Label(sensors_card, text="Course: default")
+        self.course_label.pack(anchor="w")
+        self.sonar_label = ttk.Label(sensors_card, text="Sonar: -")
+        self.sonar_label.pack(anchor="w", pady=(2, 0))
+        self.collision_label = ttk.Label(sensors_card, text="Collision: none")
+        self.collision_label.pack(anchor="w", pady=(2, 0))
         self.last_cmd_label = ttk.Label(self.panel, text="Last command: -")
         self.last_cmd_label.pack(anchor="w", pady=(10, 0))
 
@@ -189,6 +194,35 @@ class SimApp:
             x, y = self.world_to_canvas(float(item.get("x", 0.0)), float(item.get("y", 0.0)))
             pts.extend([x, y])
         self.canvas.create_line(*pts, fill="#85a3c2", width=2, smooth=True, tags="trace")
+
+    def draw_obstacles(self, st):
+        self.canvas.delete("obstacle")
+        course = st.get("course", {})
+        for obs in course.get("obstacles", []):
+            x = float(obs.get("x", 0.0))
+            y = float(obs.get("y", 0.0))
+            r = float(obs.get("radius_m", 0.04)) * SCALE
+            px, py = self.world_to_canvas(x, y)
+            self.canvas.create_oval(
+                px - r,
+                py - r,
+                px + r,
+                py + r,
+                fill="#c86a3a",
+                outline="#7a3f1e",
+                width=2,
+                tags="obstacle",
+            )
+            self.canvas.create_oval(
+                px - r * 0.45,
+                py - r * 0.45,
+                px + r * 0.45,
+                py + r * 0.45,
+                fill="#f3d7c3",
+                outline="",
+                tags="obstacle",
+            )
+            self.canvas.create_text(px, py + r + 12, text=str(obs.get("id", "cup")), fill="#6b4e3d", tags="obstacle")
 
     def _local_to_canvas(self, cx: float, cy: float, heading: float, lx: float, ly: float):
         wx = lx * math.cos(heading) - ly * math.sin(heading)
@@ -461,20 +495,37 @@ class SimApp:
             self._syncing_controls = False
 
         self.last_cmd_label.config(text=f"Last command: {st.get('last_command', '-')}")
+        course = st.get("course", {})
+        self.course_label.config(text=f"Course: {course.get('title', course.get('id', 'default'))}")
+        sonar = st.get("sonar", {})
+        distance_cm = sonar.get("distance_cm")
+        if distance_cm is None:
+            self.sonar_label.config(text="Sonar: no obstacle in range")
+        else:
+            self.sonar_label.config(text=f"Sonar: {float(distance_cm):.1f} cm")
+        collision = st.get("collision", {})
+        if collision.get("active"):
+            self.collision_label.config(text=f"Collision: {collision.get('message', 'Collision')}")
+        else:
+            self.collision_label.config(text="Collision: none")
 
     def draw(self):
         st = load_state()
         self.draw_grid()
         self.draw_trace(st.get("trace", []))
+        self.draw_obstacles(st)
         self.draw_robot(st)
         self.update_side_panel(st)
         robot = st["robot"]
-        self.status.config(
-            text=(
-                f"state: {state_path()} | x={robot['x']:.2f} y={robot['y']:.2f} "
-                f"heading={robot['heading_deg']:.1f} | last={st.get('last_command', '')}"
-            )
+        status_text = (
+            f"state: {state_path()} | x={robot['x']:.2f} y={robot['y']:.2f} "
+            f"heading={robot['heading_deg']:.1f} | last={st.get('last_command', '')}"
         )
+        if st.get("collision", {}).get("active"):
+            status_text += " | Collision"
+            self.status.config(text=status_text, foreground="#b00020")
+        else:
+            self.status.config(text=status_text, foreground="")
         self.root.after(self.poll_ms, self.draw)
 
 
