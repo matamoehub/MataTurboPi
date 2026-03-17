@@ -180,12 +180,34 @@ class Eyes(Node):
 _EYES_SINGLETON: Optional[Eyes] = None
 
 
-def get_eyes(topic: Optional[str] = None, indices: Tuple[int, int] = DEFAULT_INDICES) -> Eyes:
+def reset_eyes() -> None:
+    global _EYES_SINGLETON
+    inst = _EYES_SINGLETON
+    _EYES_SINGLETON = None
+    if inst is None:
+        return
+    try:
+        inst.off()
+    except Exception:
+        pass
+    try:
+        inst.destroy_node()
+    except Exception:
+        pass
+
+
+def get_eyes(
+    topic: Optional[str] = None,
+    indices: Tuple[int, int] = DEFAULT_INDICES,
+    force_reset: bool = False,
+) -> Eyes:
     """
     Singleton eyes instance (keeps one node/publisher alive per process).
-    If you change topic/indices, restart the kernel/process to refresh.
+    Use force_reset=True to recreate the node/publisher after a ROS/topic failure.
     """
     global _EYES_SINGLETON
+    if force_reset:
+        reset_eyes()
     if _EYES_SINGLETON is None:
         _EYES_SINGLETON = Eyes(topic=topic, indices=indices)
     return _EYES_SINGLETON

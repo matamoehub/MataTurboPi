@@ -56,6 +56,7 @@ class AnimationLibrary:
         self.base_speed = float(base_speed)
         self.default_eye_color: RGB = tuple(int(v) for v in eye_color)
         self.voice = "ryan"
+        self._eyes_indices = None
         self.phrases: Dict[str, Dict[str, str]] = {}
         self._sleep = sleep_fn
         self.verbose = bool(verbose)
@@ -78,6 +79,41 @@ class AnimationLibrary:
         if self.verbose:
             print("[anim]", *parts)
 
+    def _refresh_default_voice(self) -> None:
+        voices = self.get_available_voices()
+        if voices:
+            self.voice = voices[0]
+
+    def _refresh_eyes(self, force_reset: bool = False) -> bool:
+        try:
+            import eyes_lib
+
+            kwargs = {}
+            if self._eyes_indices is not None:
+                kwargs["indices"] = self._eyes_indices
+            self.eyes = eyes_lib.get_eyes(force_reset=force_reset, **kwargs)
+            self._status("eyes backend: ready", f"reset={force_reset}")
+            return True
+        except Exception as e:
+            self.eyes = None
+            self._status("eyes backend refresh failed:", e)
+            return False
+
+    def _eyes_call(self, method: str, *args, **kwargs) -> bool:
+        if self.eyes is None and not self._refresh_eyes(force_reset=False):
+            return False
+        for attempt in range(2):
+            try:
+                getattr(self.eyes, method)(*args, **kwargs)
+                return True
+            except Exception as e:
+                self._status(f"eyes {method} failed:", e, f"attempt={attempt + 1}")
+                if attempt == 0 and self._refresh_eyes(force_reset=True):
+                    continue
+                self.eyes = None
+                return False
+        return False
+
     def _ensure_backends(self) -> None:
         if self.robot is None:
             try:
@@ -95,14 +131,7 @@ class AnimationLibrary:
                 self._status("robot backend unavailable:", e)
 
         if self.eyes is None:
-            try:
-                import eyes_lib
-
-                self.eyes = eyes_lib.get_eyes()
-                self._status("eyes backend: ready")
-            except Exception:
-                self.eyes = None
-                self._status("eyes backend: unavailable")
+            self._refresh_eyes(force_reset=False)
 
         if self.camera is None:
             try:
@@ -119,7 +148,8 @@ class AnimationLibrary:
                 import tts_lib
 
                 self.tts = tts_lib
-                self._status("tts backend: ready")
+                self._refresh_default_voice()
+                self._status("tts backend: ready", f"default_voice={self.voice}")
             except Exception:
                 self.tts = None
                 self._status("tts backend: unavailable")
@@ -168,35 +198,34 @@ class AnimationLibrary:
     def set_eye_color(self, color: RGB):
         self.default_eye_color = tuple(int(v) for v in color)
         self._status("eyes color:", self.default_eye_color)
-        if self.eyes:
-            self.eyes.set_both(*self.default_eye_color)
+        self._eyes_call("set_both", *self.default_eye_color)
 
     def blink_once(self, color: Optional[RGB] = None, blank_s: float = 0.5):
-        if not self.eyes:
+        if not self.eyes and not self._refresh_eyes(force_reset=False):
             self._status("blink_once skipped: eyes unavailable")
             return
         c = tuple(int(v) for v in (color or self.default_eye_color))
         self._status("blink_once", f"color={c}", f"blank_s={blank_s}")
-        self.eyes.set_both(*c)
-        self.eyes.off()
+        self._eyes_call("set_both", *c)
+        self._eyes_call("off")
         self._sleep(max(0.0, float(blank_s)))
-        self.eyes.set_both(*c)
+        self._eyes_call("set_both", *c)
 
     def wink(self, side: str = "left", color: Optional[RGB] = None, blank_s: float = 0.5):
-        if not self.eyes:
+        if not self.eyes and not self._refresh_eyes(force_reset=False):
             self._status("wink skipped: eyes unavailable")
             return
         c = tuple(int(v) for v in (color or self.default_eye_color))
         self._status("wink", f"side={side}", f"color={c}", f"blank_s={blank_s}")
-        self.eyes.set_both(*c)
+        self._eyes_call("set_both", *c)
         if str(side).strip().lower() in ("left", "l"):
-            self.eyes.set_left(0, 0, 0)
+            self._eyes_call("set_left", 0, 0, 0)
             self._sleep(max(0.0, float(blank_s)))
-            self.eyes.set_left(*c)
+            self._eyes_call("set_left", *c)
         else:
-            self.eyes.set_right(0, 0, 0)
+            self._eyes_call("set_right", 0, 0, 0)
             self._sleep(max(0.0, float(blank_s)))
-            self.eyes.set_right(*c)
+            self._eyes_call("set_right", *c)
 
     def _blink_loop(self, every_s: float, color: RGB, blank_s: float):
         interval = max(0.05, float(every_s))
@@ -204,21 +233,21 @@ class AnimationLibrary:
         while not self._blink_stop.is_set():
             if self._blink_stop.wait(interval):
                 break
-            if self.eyes:
+            if self.eyes or self._refresh_eyes(force_reset=False):
                 self._status("blink")
-                self.eyes.off()
+                self._eyes_call("off")
                 if self._blink_stop.wait(max(0.0, float(blank_s))):
                     break
-                self.eyes.set_both(*color)
+                self._eyes_call("set_both", *color)
         self._status("blink loop stop")
 
     def start_blinking(self, every_s: float = 3.0, color: Optional[RGB] = None, blank_s: float = 0.5):
-        if not self.eyes:
+        if not self.eyes and not self._refresh_eyes(force_reset=False):
             self._status("start_blinking skipped: eyes unavailable")
             return None
         c = tuple(int(v) for v in (color or self.default_eye_color))
         self._status("start_blinking", f"every_s={every_s}", f"color={c}", f"blank_s={blank_s}")
-        self.eyes.set_both(*c)
+        self._eyes_call("set_both", *c)
         self.stop_blinking()
         self._blink_stop.clear()
         self._blink_thread = self.run_async(self._blink_loop, every_s, c, blank_s)
@@ -286,9 +315,24 @@ class AnimationLibrary:
     def get_available_voices(self) -> List[str]:
         if not self.tts:
             return []
+        avail_fn = getattr(self.tts, "available_voices", None)
+        if callable(avail_fn):
+            voices = [str(v).strip().lower() for v in avail_fn(installed_only=True)]
+            if voices:
+                return voices
         vm = getattr(self.tts, "VOICE_MAP", None)
+        voice_paths = getattr(self.tts, "_voice_paths", None)
         if isinstance(vm, dict):
-            return sorted([str(k).strip().lower() for k in vm.keys()])
+            voices: List[str] = []
+            for name in vm.keys():
+                key = str(name).strip().lower()
+                if callable(voice_paths):
+                    try:
+                        voice_paths(key)
+                    except Exception:
+                        continue
+                voices.append(key)
+            return voices
         return []
 
     def show_voices(self) -> List[str]:

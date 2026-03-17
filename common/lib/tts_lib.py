@@ -33,6 +33,21 @@ DEFAULT_VOICE = "ryan"
 PIPER_VOICE_ENV = "PIPER_VOICE"
 
 
+def available_voices(installed_only: bool = True) -> list[str]:
+    """Return voices in classroom order, optionally filtered to installed voices only."""
+    voices = list(VOICE_MAP.keys())
+    if not installed_only:
+        return voices
+    out: list[str] = []
+    for name in voices:
+        try:
+            _voice_paths(name)
+            out.append(name)
+        except Exception:
+            pass
+    return out
+
+
 def _resolve_voice(voice: Optional[str]) -> str:
     """
     Voice precedence:
@@ -120,6 +135,16 @@ def synth_to_wav(
     return out_path
 
 
+def _is_valid_wav(path: str) -> bool:
+    try:
+        if not os.path.isfile(path) or os.path.getsize(path) < 44:
+            return False
+        with contextlib.closing(wave.open(path, "rb")) as w:
+            return w.getnframes() > 0 and w.getframerate() > 0
+    except Exception:
+        return False
+
+
 def pre_synth(
     text: str,
     voice: Optional[str] = None,
@@ -133,7 +158,12 @@ def pre_synth(
     key = f"{voice_name}|{length_scale}|{sentence_silence}|{text}".encode("utf-8")
     h = hashlib.sha1(key).hexdigest()[:16]
     out_path = os.path.join(tempfile.gettempdir(), f"piper-{h}.wav")
-    if not os.path.exists(out_path):
+    if not _is_valid_wav(out_path):
+        try:
+            if os.path.exists(out_path):
+                os.remove(out_path)
+        except Exception:
+            pass
         synth_to_wav(
             text,
             voice=voice_name,
@@ -141,10 +171,14 @@ def pre_synth(
             sentence_silence=sentence_silence,
             out_path=out_path,
         )
+        if not _is_valid_wav(out_path):
+            raise RuntimeError(f"Generated invalid wav: {out_path}")
     return out_path
 
 
 def wav_duration_seconds(path: str) -> float:
+    if not _is_valid_wav(path):
+        raise RuntimeError(f"Invalid wav file: {path}")
     with contextlib.closing(wave.open(path, "rb")) as w:
         return w.getnframes() / float(w.getframerate())
 
