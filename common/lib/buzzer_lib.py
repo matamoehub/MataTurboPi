@@ -181,12 +181,25 @@ class Buzzer(Node):
         except Exception:
             pass
 
-    def beep(self, freq: int = 2000, duration_s: float = 0.2, gap_s: float = POST_NOTE_GAP_S) -> None:
+    def beep(
+        self,
+        freq: int = 2000,
+        duration_s: float = 0.2,
+        gap_s: float = POST_NOTE_GAP_S,
+        note: str | None = None,
+    ) -> None:
+        if note is not None:
+            freq = note_to_freq(note)
         duration_s = max(0.0, float(duration_s))
         if duration_s <= 0:
             return
-        # Some controller images ignore long on_time values. Sustain the note by
-        # reissuing short tone chunks until the requested duration has elapsed.
+        if int(freq) <= 0:
+            time.sleep(duration_s)
+            if gap_s > 0:
+                time.sleep(float(gap_s))
+            return
+        # Some controller images ignore long on_time values. Sustain the tone by
+        # reissuing short chunks until the requested duration has elapsed.
         remain_s = duration_s
         chunk_s = max(0.02, float(BUZZER_SUSTAIN_CHUNK_S))
         while remain_s > 0:
