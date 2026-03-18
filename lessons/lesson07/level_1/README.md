@@ -1,9 +1,12 @@
 # Lesson 7 — Advanced Project: Autonomous Obstacle Course
 
 ## Goal
-Use the same project libraries as Lesson 6, but organise the code in a stronger way.
+This lesson is for advanced students.
 
-This lesson is for advanced students who are ready to build a robot that behaves more autonomously and can recover from navigation mistakes.
+The purpose is not to copy a finished solution.
+The purpose is to become confident with the libraries and sensors, then design your own control logic.
+
+Students should test the robot's capabilities first, then build a stronger autonomous obstacle-course program.
 
 ## Libraries for this lesson
 - `student_robot_moves`
@@ -13,8 +16,8 @@ This lesson is for advanced students who are ready to build a robot that behaves
 - `camera_lib`
 - `sonar_lib` / `ultrasonic_lib`
 
-## Advanced coding ideas to include
-Students should use:
+## What students should practise
+Students should show they can use:
 - variables
 - functions that return values
 - dictionary lookups
@@ -23,25 +26,37 @@ Students should use:
 - `if / elif / else`
 - a class to group robot state and behaviour
 
-## Advanced project idea
-The robot is entering a harder obstacle course.
-It should:
-1. sense distance repeatedly
-2. classify situations such as `clear`, `warning`, or `blocked`
-3. choose actions from those states
-4. recover when it gets too close or makes a poor choice
-5. track progress and celebrate passed obstacles
+## Teaching approach for this lesson
+Do not hand students a completed navigation program.
 
-## Required advanced concepts
-Students should demonstrate:
-- dictionary lookups
-- at least two functions that return values
-- one class that stores robot state
-- one recovery strategy for errors
-- repeated decision-making using a loop
+Instead:
+1. test each library and sensor
+2. discuss what information each one gives them
+3. plan the logic using pseudocode
+4. let students build and refine their own solution
+
+## Suggested design flow
+A strong advanced project might follow this structure:
+1. setup robot state and thresholds
+2. test sonar repeatedly
+3. classify distance into states such as `clear`, `warning`, `blocked`
+4. choose an action for each state
+5. perform recovery when the robot gets too close or stuck
+6. track progress through the course
+7. celebrate or report when obstacles are passed
+
+## Questions students should answer before coding
+- What sonar value means the path is clear?
+- What sonar value means the robot should slow down?
+- What sonar value means the robot should back away or turn?
+- Which function should return the robot state?
+- Which dictionary could map states to colours, sounds, or messages?
+- How will the robot know it has passed an obstacle?
+- What should recovery look like if the robot makes a mistake?
 
 ## Success criteria
-- The robot uses all required libraries.
-- The code is structured and reusable.
-- The robot makes repeated decisions using sonar information.
-- The robot can try a recovery move instead of stopping at the first problem.
+- The robot uses the required libraries.
+- The student tests the sensors before building the full program.
+- The student uses structured logic instead of one long script.
+- The student creates their own decision-making flow.
+- The student can explain why their algorithm works.
