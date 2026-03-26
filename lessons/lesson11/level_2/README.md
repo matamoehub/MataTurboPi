@@ -3,7 +3,7 @@
 ## Goal
 Use the V2 robot object to plan and drive around two cups.
 
-This mirrors Lesson 1 Level 2, but uses the standard movement namespace instead of custom movement functions.
+This mirrors Lesson 1 Level 2, but uses the V2 robot object. In this level you should explicitly switch the movement backend to `student_robot_moves` with `myRobot.use_student_moves()` so students are testing their own movement implementation through the V2 API.
 
 ## Focus
 - movement timing

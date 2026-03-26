@@ -122,6 +122,15 @@ class MoveNamespace(_BackendProxy):
     def run_async(self, move_name: str, seconds: float = 0.5, speed: Optional[float] = None, **kwargs):
         return self._owner.anim.run_async(self.run, move_name, seconds, speed, **kwargs)
 
+    def use_base(self):
+        return self._owner.use_base_moves()
+
+    def use_robot_moves(self):
+        return self._owner.use_base_moves()
+
+    def use_student(self):
+        return self._owner.use_student_moves()
+
 
 class EyesNamespace(_BackendProxy):
     def _get_backend(self):
@@ -452,6 +461,29 @@ class RobotV2:
         self._move_backends = [b for b in order if b is not None]
         self._move_backend = self._move_backends[0] if self._move_backends else None
 
+    def _movement_backend_name(self) -> str:
+        if self._move_backend is self._student_moves and self._student_moves is not None:
+            return "student_robot_moves"
+        if self._move_backend is self._rm and self._rm is not None:
+            return "robot_moves"
+        if self._move_backend is None:
+            return "unavailable"
+        return type(self._move_backend).__name__
+
+    def _refresh_animation_backend(self):
+        if self._animation_backend is not None:
+            try:
+                self._animation_backend = importlib.import_module("student_animation_lib").get_animation_lib(
+                    robot=self._move_backend,
+                    eyes=self._eyes_backend,
+                    camera=self._camera_backend,
+                    tts=self._tts_backend,
+                    base_speed=self.base_speed,
+                    verbose=self.verbose,
+                )
+            except Exception as e:
+                self._errors["student_animation_lib"] = str(e)
+
     def _ensure_backends(self, line_mode: str = "pid"):
         if self._move_backend is None:
             self._build_move_backends()
@@ -557,6 +589,23 @@ class RobotV2:
         self._ensure_backends()
         return self._animation_backend
 
+    def use_base_moves(self):
+        self.prefer_student_moves = False
+        self._build_move_backends()
+        self._refresh_animation_backend()
+        self._status("movement backend ->", self._movement_backend_name())
+        return self
+
+    def use_robot_moves(self):
+        return self.use_base_moves()
+
+    def use_student_moves(self):
+        self.prefer_student_moves = True
+        self._build_move_backends()
+        self._refresh_animation_backend()
+        self._status("movement backend ->", self._movement_backend_name())
+        return self
+
     def horn(self, block: bool = True):
         if self.anim is not None:
             return self.anim.horn_normal(block=block)
@@ -586,7 +635,7 @@ class RobotV2:
         print("student_robot_v2:", __version__)
         print("base_speed:", self.base_speed)
         print("rate_hz:", self.rate_hz)
-        print("movement backend:", type(self._move_backend).__name__ if self._move_backend is not None else "unavailable")
+        print("movement backend:", self._movement_backend_name())
         print("eyes:", "ready" if self._eyes_backend is not None else f"unavailable -> {self._errors.get('eyes_lib')}")
         print("camera:", "ready" if self._camera_backend is not None else f"unavailable -> {self._errors.get('camera_lib')}")
         print("tts:", "ready" if self._tts_backend is not None else f"unavailable -> {self._errors.get('tts_lib')}")
@@ -632,7 +681,7 @@ class RobotV2:
 
 
 
-def bot(base_speed: float = 300.0, rate_hz: float = 20.0, prefer_student_moves: bool = True, verbose: bool = True) -> RobotV2:
+def bot(base_speed: float = 300.0, rate_hz: float = 20.0, prefer_student_moves: bool = False, verbose: bool = True) -> RobotV2:
     with _get_lock():
         inst = get_process_singleton(_SINGLETON_KEY)
         if inst is None:
