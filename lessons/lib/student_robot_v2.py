@@ -127,22 +127,36 @@ class EyesNamespace(_BackendProxy):
     def _get_backend(self):
         return self._owner._eyes_backend
 
-    def color(self, r: int, g: int, b: int):
+    @staticmethod
+    def _rgb_args(r, g=None, b=None):
+        if isinstance(r, (tuple, list)):
+            if len(r) != 3:
+                raise ValueError("RGB tuple/list must have exactly 3 values")
+            return int(r[0]), int(r[1]), int(r[2])
+        if g is None or b is None:
+            raise TypeError("Expected either (r, g, b) or a single (r, g, b) tuple/list")
+        return int(r), int(g), int(b)
+
+    def color(self, r: int, g: int = None, b: int = None):
+        r, g, b = self._rgb_args(r, g, b)
         self._owner.anim.set_eye_color((r, g, b))
 
-    def set_color(self, r: int, g: int, b: int):
+    def set_color(self, r: int, g: int = None, b: int = None):
         return self.color(r, g, b)
 
-    def set_both(self, r: int, g: int, b: int):
+    def set_both(self, r: int, g: int = None, b: int = None):
+        r, g, b = self._rgb_args(r, g, b)
         backend = self._ensure()
         self._owner.anim.set_eye_color((r, g, b))
         return backend.set_both(r, g, b)
 
-    def left(self, r: int, g: int, b: int):
+    def left(self, r: int, g: int = None, b: int = None):
+        r, g, b = self._rgb_args(r, g, b)
         backend = self._ensure()
         return backend.set_left(r, g, b)
 
-    def right(self, r: int, g: int, b: int):
+    def right(self, r: int, g: int = None, b: int = None):
+        r, g, b = self._rgb_args(r, g, b)
         backend = self._ensure()
         return backend.set_right(r, g, b)
 
