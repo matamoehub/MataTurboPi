@@ -1,0 +1,18 @@
+{
+  "id": "lesson11_level_1",
+  "title": "Lesson11 Level 1",
+  "robot_start": {
+    "x": 0.0,
+    "y": 0.0,
+    "heading_deg": 0.0
+  },
+  "obstacles": [
+    {
+      "id": "cup_1",
+      "kind": "cup",
+      "x": 0.0,
+      "y": 0.2,
+      "radius_m": 0.04
+    }
+  ]
+}

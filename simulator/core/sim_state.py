@@ -18,6 +18,16 @@ ROBOT_RADIUS_M = 0.11
 SONAR_MAX_RANGE_M = 2.0
 SONAR_HALF_WIDTH_M = 0.08
 
+_LESSON_ALIASES = {
+    "lesson11": "lesson01",
+    "lesson12": "lesson02",
+    "lesson13": "lesson03",
+    "lesson14": "lesson04",
+    "lesson15": "lesson05",
+    "lesson16": "lesson06",
+    "lesson17": "lesson07",
+}
+
 
 def state_path() -> Path:
     return Path(os.environ.get(STATE_ENV, DEFAULT_STATE_FILE)).expanduser().resolve()
@@ -81,6 +91,11 @@ def _course_file_for(lesson_id: Optional[str], level_id: Optional[str]) -> Path:
         candidate = _courses_dir() / f"{lesson_id}_{level_id}.json"
         if candidate.exists():
             return candidate
+        mapped = _LESSON_ALIASES.get(str(lesson_id))
+        if mapped:
+            alias_candidate = _courses_dir() / f"{mapped}_{level_id}.json"
+            if alias_candidate.exists():
+                return alias_candidate
     return _courses_dir() / "default.json"
 
 

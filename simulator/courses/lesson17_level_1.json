@@ -1,0 +1,74 @@
+{
+  "id": "lesson17_level_1",
+  "title": "Lesson17 Level 1",
+  "robot_start": {
+    "x": 0.0,
+    "y": 0.0,
+    "heading_deg": 0.0
+  },
+  "obstacles": [
+    {
+      "id": "cup_1",
+      "kind": "cup",
+      "x": -0.2,
+      "y": 0.2,
+      "radius_m": 0.04
+    },
+    {
+      "id": "cup_2",
+      "kind": "cup",
+      "x": 0.0,
+      "y": 0.2,
+      "radius_m": 0.04
+    },
+    {
+      "id": "cup_3",
+      "kind": "cup",
+      "x": 0.2,
+      "y": 0.2,
+      "radius_m": 0.04
+    },
+    {
+      "id": "cup_4",
+      "kind": "cup",
+      "x": -0.2,
+      "y": 0.4,
+      "radius_m": 0.04
+    },
+    {
+      "id": "cup_5",
+      "kind": "cup",
+      "x": 0.0,
+      "y": 0.4,
+      "radius_m": 0.04
+    },
+    {
+      "id": "cup_6",
+      "kind": "cup",
+      "x": 0.2,
+      "y": 0.4,
+      "radius_m": 0.04
+    },
+    {
+      "id": "cup_7",
+      "kind": "cup",
+      "x": -0.2,
+      "y": 0.6,
+      "radius_m": 0.04
+    },
+    {
+      "id": "cup_8",
+      "kind": "cup",
+      "x": 0.0,
+      "y": 0.6,
+      "radius_m": 0.04
+    },
+    {
+      "id": "cup_9",
+      "kind": "cup",
+      "x": 0.2,
+      "y": 0.6,
+      "radius_m": 0.04
+    }
+  ]
+}
