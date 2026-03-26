@@ -20,6 +20,7 @@ COMMON_MODULES = [
     "camera_lib",
     "tts_lib",
     "student_animation_lib",
+    "student_robot_v2",
     "sound",
     "line_sensors",
     "robot_controller_api",

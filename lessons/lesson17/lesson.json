@@ -1,0 +1,12 @@
+{
+  "id": "lesson17",
+  "title": "Lesson 17 \u2014 Advanced Project V2",
+  "description": "Mirror of Lesson 7 using the V2 aggregate robot object API.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Advanced Project)",
+      "entry": "Lesson17.ipynb"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "lesson15",
+  "title": "Lesson 15 \u2014 V2 Library Test Bench",
+  "description": "Mirror of Lesson 5 using the V2 aggregate robot object API.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Test Bench)",
+      "entry": "Lesson15.ipynb"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "lesson13",
+  "title": "Lesson 13 \u2014 Ball Tracking + Push to Goal V2",
+  "description": "Mirror of Lesson 3 using the V2 aggregate robot object API.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Beginner)",
+      "entry": "Lesson13.ipynb"
+    }
+  ]
+}

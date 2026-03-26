@@ -1,0 +1,22 @@
+{
+  "id": "lesson11",
+  "title": "Lesson 11 \u2014 Robot Demo V2",
+  "description": "Mirror of Lesson 1 using the V2 aggregate robot object API.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Beginner)",
+      "entry": "Lesson11.ipynb"
+    },
+    {
+      "id": "level_2",
+      "title": "Level 2 (Intermediate)",
+      "entry": "Lesson11_Level2.ipynb"
+    },
+    {
+      "id": "Demos",
+      "title": "Demos",
+      "entry": "Robot_Demo.ipynb"
+    }
+  ]
+}

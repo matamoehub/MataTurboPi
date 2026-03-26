@@ -1,0 +1,12 @@
+{
+  "id": "lesson14",
+  "title": "Lesson 14 \u2014 Robot Personality V2",
+  "description": "Mirror of Lesson 4 using the V2 aggregate robot object API.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Beginner)",
+      "entry": "Lesson14.ipynb"
+    }
+  ]
+}

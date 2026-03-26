@@ -1,0 +1,17 @@
+{
+  "id": "lesson12",
+  "title": "Lesson 12 \u2014 Character Animation V2",
+  "description": "Mirror of Lesson 2 using the V2 aggregate robot object API.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Examples)",
+      "entry": "Lesson12.ipynb"
+    },
+    {
+      "id": "level_2",
+      "title": "Level 2 (Build Your Sequence)",
+      "entry": "Lesson12.ipynb"
+    }
+  ]
+}
