@@ -1,3 +1,5 @@
+__version__ = "1.1.0"
+
 # tts_lib.py
 # Piper TTS helper for Matamoe robots (Python 3.10)
 #

@@ -2,6 +2,8 @@
 """
 Ultrasonic / sonar helper built on the same ROS topic used by the app nodes.
 """
+__version__ = "1.1.0"
+
 
 import os
 import threading

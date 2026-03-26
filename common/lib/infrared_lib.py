@@ -3,6 +3,8 @@
 infrared_lib.py
 Infrared line sensor helper with retries and optional I2C bus scan.
 """
+__version__ = "1.1.0"
+
 
 import time
 from typing import List, Optional

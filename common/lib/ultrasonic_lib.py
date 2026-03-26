@@ -2,6 +2,8 @@
 """
 Compatibility alias for sonar_lib.
 """
+__version__ = "1.1.0"
+
 
 from sonar_lib import Sonar, get_sonar
 

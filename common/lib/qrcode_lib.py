@@ -2,6 +2,8 @@
 """
 Client wrapper for the app QR-code node.
 """
+__version__ = "1.1.0"
+
 
 from typing import Optional
 

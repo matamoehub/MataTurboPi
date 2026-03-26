@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+__version__ = "1.1.0"
+
 # robot_moves.py — direct motor moves + diagonals + wheel-level drift + horn + RobotMoves class
 from typing import List, Tuple, Optional
 import os, sys, time, subprocess

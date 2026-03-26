@@ -10,6 +10,8 @@ Examples:
     bz.play_notes("C4:1 D4:1 E4:2 R:1 C5:2", bpm=120)
     bz.play_notes_music_mode("C4:1 D4:1 E4:2", bpm=120)
 """
+__version__ = "1.1.0"
+
 
 import os
 import time

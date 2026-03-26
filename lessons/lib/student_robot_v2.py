@@ -15,11 +15,11 @@ from __future__ import annotations
 import builtins
 import importlib
 import threading
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -130,12 +130,34 @@ class EyesNamespace(_BackendProxy):
     def color(self, r: int, g: int, b: int):
         self._owner.anim.set_eye_color((r, g, b))
 
+    def set_color(self, r: int, g: int, b: int):
+        return self.color(r, g, b)
+
+    def set_both(self, r: int, g: int, b: int):
+        backend = self._ensure()
+        self._owner.anim.set_eye_color((r, g, b))
+        return backend.set_both(r, g, b)
+
+    def left(self, r: int, g: int, b: int):
+        backend = self._ensure()
+        return backend.set_left(r, g, b)
+
+    def right(self, r: int, g: int, b: int):
+        backend = self._ensure()
+        return backend.set_right(r, g, b)
+
     def off(self):
         backend = self._ensure()
         return backend.off()
 
+    def on(self, r: int = 0, g: int = 255, b: int = 120):
+        return self.set_both(r, g, b)
+
     def blink(self, every_s: float = 3.0, blank_s: float = 0.5):
         return self._owner.anim.start_blinking(every_s=every_s, blank_s=blank_s)
+
+    def start_blink(self, every_s: float = 3.0, blank_s: float = 0.5):
+        return self.blink(every_s=every_s, blank_s=blank_s)
 
     def blink_once(self, blank_s: float = 0.5):
         return self._owner.anim.blink_once(blank_s=blank_s)
@@ -155,6 +177,9 @@ class CameraNamespace(_BackendProxy):
         backend = self._ensure()
         return backend.center_all()
 
+    def center_all(self):
+        return self.center()
+
     def left(self, amplitude: int = 250, hold_s: float = 0.15):
         return self._owner.anim.look_left(amplitude=amplitude, hold_s=hold_s)
 
@@ -167,11 +192,37 @@ class CameraNamespace(_BackendProxy):
     def down(self, amplitude: int = 250, hold_s: float = 0.15):
         return self._owner.anim.look_down(amplitude=amplitude, hold_s=hold_s)
 
+    def glance_left(self, amplitude: int = 250, hold_s: float = 0.15):
+        return self.left(amplitude=amplitude, hold_s=hold_s)
+
+    def glance_right(self, amplitude: int = 250, hold_s: float = 0.15):
+        return self.right(amplitude=amplitude, hold_s=hold_s)
+
+    def look_left(self, amplitude: int = 250, hold_s: float = 0.15):
+        return self.left(amplitude=amplitude, hold_s=hold_s)
+
+    def look_right(self, amplitude: int = 250, hold_s: float = 0.15):
+        return self.right(amplitude=amplitude, hold_s=hold_s)
+
+    def look_up(self, amplitude: int = 250, hold_s: float = 0.15):
+        return self.up(amplitude=amplitude, hold_s=hold_s)
+
+    def look_down(self, amplitude: int = 250, hold_s: float = 0.15):
+        return self.down(amplitude=amplitude, hold_s=hold_s)
+
     def nod(self, depth: int = 250, speed_s: Optional[float] = None):
         return self._owner.anim.nod(depth=depth, speed_s=speed_s)
 
     def shake(self, width: int = 250, speed_s: Optional[float] = None):
         return self._owner.anim.shake(width=width, speed_s=speed_s)
+
+    def wiggle(self, cycles: int = 2, amplitude: int = 200, speed_s: Optional[float] = None):
+        backend = self._ensure()
+        return backend.wiggle(cycles=cycles, amplitude=amplitude, speed_s=speed_s)
+
+    def tiny_wiggle(self, seconds: float = 2.0, amplitude: int = 90, speed_s: float = 0.12):
+        backend = self._ensure()
+        return backend.tiny_wiggle(seconds=seconds, amplitude=amplitude, speed_s=speed_s)
 
 
 class VoiceNamespace(_BackendProxy):
@@ -181,17 +232,35 @@ class VoiceNamespace(_BackendProxy):
     def say(self, text: str, block: bool = True, voice: Optional[str] = None):
         return self._owner.anim.speak(text=text, block=block, voice=voice)
 
+    def speak(self, text: str, block: bool = True, voice: Optional[str] = None):
+        return self.say(text=text, block=block, voice=voice)
+
     def voices(self):
         return self._owner.anim.show_voices()
+
+    def show_voices(self):
+        return self.voices()
 
     def select(self, voice: Optional[str] = None, number: Optional[int] = None):
         return self._owner.anim.select_voice(voice=voice, number=number)
 
+    def select_voice(self, voice: Optional[str] = None, number: Optional[int] = None):
+        return self.select(voice=voice, number=number)
+
+    def select_voice_number(self, number: int):
+        return self.select(number=number)
+
     def generate(self, key: str, text: str, voice: Optional[str] = None, length_scale: str = "0.98", sentence_silence: str = "0.08"):
         return self._owner.anim.generate_phrase(key=key, text=text, voice=voice, length_scale=length_scale, sentence_silence=sentence_silence)
 
+    def generate_phrase(self, key: str, text: str, voice: Optional[str] = None, length_scale: str = "0.98", sentence_silence: str = "0.08"):
+        return self.generate(key=key, text=text, voice=voice, length_scale=length_scale, sentence_silence=sentence_silence)
+
     def play(self, key: str, block: bool = True):
         return self._owner.anim.play_phrase(key=key, block=block)
+
+    def play_phrase(self, key: str, block: bool = True):
+        return self.play(key=key, block=block)
 
 
 class BuzzerNamespace(_BackendProxy):
@@ -201,10 +270,42 @@ class BuzzerNamespace(_BackendProxy):
     def horn(self, block: bool = True):
         return self._owner.horn(block=block)
 
+    def beep(self, *args, **kwargs):
+        backend = self._ensure()
+        return backend.beep(*args, **kwargs)
+
+    def play_notes(self, score: str, bpm: int = 120):
+        backend = self._ensure()
+        return backend.play_notes(score, bpm=bpm)
+
+    def play_notes_music_mode(self, score: str, bpm: int = 120):
+        backend = self._ensure()
+        return backend.play_notes_music_mode(score, bpm=bpm)
+
+    def play_melody(self, notes, bpm: int = 120):
+        backend = self._ensure()
+        return backend.play_melody(notes, bpm=bpm)
+
 
 class SonarNamespace(_BackendProxy):
     def _get_backend(self):
         return self._owner._sonar_backend
+
+    def wait(self, timeout_s: float = 2.0):
+        backend = self._ensure()
+        return backend.wait_for_reading(timeout_s=timeout_s)
+
+    def distance_cm(self, filtered: bool = True):
+        backend = self._ensure()
+        return backend.get_distance_cm(filtered=filtered)
+
+    def distance_mm(self, filtered: bool = True):
+        backend = self._ensure()
+        return backend.get_distance_mm(filtered=filtered)
+
+    def is_closer_than(self, threshold_cm: float, filtered: bool = True):
+        backend = self._ensure()
+        return backend.is_closer_than(threshold_cm=threshold_cm, filtered=filtered)
 
 
 class InfraredNamespace(_BackendProxy):
@@ -282,6 +383,9 @@ class RobotV2:
         self.tracking = TrackingNamespace(self)
         self.avoidance = AvoidanceNamespace(self)
         self.qrcode = QRCodeNamespace(self)
+        self.tts = self.voice
+        self.sound = self.buzzer
+        self.ultra = self.sonar
 
         self._ensure_backends()
 
@@ -490,14 +594,27 @@ class RobotV2:
         modules = [
             ("student_robot_moves", self._student_moves),
             ("robot_moves", self._rm),
+            ("eyes_lib", self._import("eyes_lib")),
+            ("camera_lib", self._import("camera_lib")),
             ("tts_lib", self._tts_backend),
+            ("buzzer_lib", self._import("buzzer_lib")),
+            ("sonar_lib", self._import("sonar_lib")),
+            ("ultrasonic_lib", self._import("ultrasonic_lib")),
+            ("infrared_lib", self._import("infrared_lib")),
+            ("line_follower_lib", self._import("line_follower_lib")),
+            ("tracking_lib", self._import("tracking_lib")),
+            ("avoidance_lib", self._import("avoidance_lib")),
+            ("qrcode_lib", self._import("qrcode_lib")),
+            ("student_animation_lib", self._import("student_animation_lib")),
         ]
         for name, mod in modules:
             if mod is not None:
                 versions[name] = getattr(mod, "__version__", "unknown")
-        if self.anim is not None:
-            versions["student_animation_lib"] = getattr(importlib.import_module("student_animation_lib"), "__version__", "unknown")
         return versions
+
+    def show_versions(self):
+        for name in sorted(self.versions()):
+            print(f"{name}: {self.versions()[name]}")
 
 
 

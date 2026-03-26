@@ -1,3 +1,5 @@
+__version__ = "1.1.0"
+
 # eyes_lib.py
 import os
 import time

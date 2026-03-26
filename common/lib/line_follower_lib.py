@@ -3,6 +3,8 @@
 line_follower_lib.py
 Simple PID line following built on Infrared + robot_moves.
 """
+__version__ = "1.1.0"
+
 
 import time
 from dataclasses import dataclass

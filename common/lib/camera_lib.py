@@ -1,3 +1,5 @@
+__version__ = "1.1.0"
+
 # camera_lib.py
 import time
 from typing import Optional

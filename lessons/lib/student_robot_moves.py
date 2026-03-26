@@ -6,6 +6,8 @@ Level 2 task:
 - Keep the provided functions as examples.
 - Implement the TODO functions using wheel-level patterns.
 """
+__version__ = "1.1.0"
+
 
 import robot_moves as base
 

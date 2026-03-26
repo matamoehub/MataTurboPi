@@ -46,3 +46,10 @@ def stop_robot():
             myRobot.stop()
     except Exception:
         pass
+
+
+def show_v2_versions():
+    if myRobot is None:
+        print("student_robot_v2 unavailable")
+        return
+    myRobot.show_versions()
