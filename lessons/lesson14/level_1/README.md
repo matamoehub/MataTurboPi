@@ -1,21 +1,23 @@
-# Lesson 14 — Robot Personality V2
+# Lesson 14 — Animate the Robot (Personality) With V2
 
-Mirror of Lesson 4 using the V2 aggregate robot object API.
+## Goal
+Give the robot personality using:
+- camera movement
+- eye animation
+- small robot movements
+- speech and sound
 
-Use `myRobot = bot(...)` and the V2 namespaces such as `myRobot.move.forward(...)`, `myRobot.eyes.wink(...)`, and `myRobot.voice.say(...)`.
+This mirrors Lesson 4, but everything is accessed through one V2 robot object.
 
-## V2 Namespace Map
-- `myRobot.move` for robot movement
-- `myRobot.eyes` for eye colour, blink, and wink
-- `myRobot.camera` for nod, shake, left, right, up, and down
-- `myRobot.voice` for speech, voice selection, phrase generation, and phrase playback
-- `myRobot.buzzer` for beep and note playback
-- `myRobot.sonar` / `myRobot.ultra` for distance sensing
-- `myRobot.line`, `myRobot.tracking`, `myRobot.avoidance`, and `myRobot.qrcode` for ROS-driven behaviours
+## What students will do
+1. create an idle animation loop
+2. add small fidget movements
+3. animate the eyes
+4. use speech sparingly
+5. use camera movement to show reactions
 
-## Version Check
-Run:
-```python
-from lesson_header import *
-show_v2_versions()
-```
+## Suggested behaviours
+- Idle: blink + tiny movement
+- Curious: eyes change colour, short voice line
+- Happy: drift or spin + buzzer
+- Thinking: slow blink, small left/right movement

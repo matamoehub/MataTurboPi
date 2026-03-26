@@ -1,21 +1,32 @@
-# Lesson 13 — Ball Tracking + Push to Goal V2
+# Lesson 13 — Find Colour Balls With V2
 
-Mirror of Lesson 3 using the V2 aggregate robot object API.
+## Goal
+Use the V2 robot object to help the robot:
+1. choose a target colour
+2. find the correct ball using vision
+3. decide how to move
+4. line up and push the ball
 
-Use `myRobot = bot(...)` and the V2 namespaces such as `myRobot.move.forward(...)`, `myRobot.eyes.wink(...)`, and `myRobot.voice.say(...)`.
+This mirrors Lesson 3, but movement and reactions use the V2 namespaces.
 
-## V2 Namespace Map
-- `myRobot.move` for robot movement
-- `myRobot.eyes` for eye colour, blink, and wink
-- `myRobot.camera` for nod, shake, left, right, up, and down
-- `myRobot.voice` for speech, voice selection, phrase generation, and phrase playback
-- `myRobot.buzzer` for beep and note playback
-- `myRobot.sonar` / `myRobot.ultra` for distance sensing
-- `myRobot.line`, `myRobot.tracking`, `myRobot.avoidance`, and `myRobot.qrcode` for ROS-driven behaviours
+## How this lesson works
+- you work in a notebook
+- you reuse the V2 movement API
+- the robot does not move to search unless your logic says it should
+- the camera and tracking services help decide movement
 
-## Version Check
-Run:
-```python
-from lesson_header import *
-show_v2_versions()
-```
+## Required flow
+### Step 0 — Calibrate colours
+Before running the notebook, make sure colour calibration is correct.
+
+### Step 1 — Choose a target colour
+Pick one colour and store it.
+
+### Step 2 — Camera scan path
+Design how the camera or tracking service should scan.
+
+### Step 3 — Vision output
+Use the tracking information to decide left, right, or forward movement.
+
+### Step 4 — Push to goal
+Use `myRobot.move` for the push stage.

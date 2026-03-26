@@ -1,21 +1,33 @@
-# Lesson 16 — Project V2
+# Lesson 16 — Project: Obstacle Course Performance With V2
 
-Mirror of Lesson 6 using the V2 aggregate robot object API.
+## Goal
+Use the V2 robot object to write code for a robot that moves through an obstacle course.
 
-Use `myRobot = bot(...)` and the V2 namespaces such as `myRobot.move.forward(...)`, `myRobot.eyes.wink(...)`, and `myRobot.voice.say(...)`.
+This mirrors Lesson 6, but uses one standardized object instead of separate libraries.
 
-## V2 Namespace Map
-- `myRobot.move` for robot movement
-- `myRobot.eyes` for eye colour, blink, and wink
-- `myRobot.camera` for nod, shake, left, right, up, and down
-- `myRobot.voice` for speech, voice selection, phrase generation, and phrase playback
-- `myRobot.buzzer` for beep and note playback
-- `myRobot.sonar` / `myRobot.ultra` for distance sensing
-- `myRobot.line`, `myRobot.tracking`, `myRobot.avoidance`, and `myRobot.qrcode` for ROS-driven behaviours
+## Libraries for this lesson
+Students will use these V2 namespaces:
+- `myRobot.move`
+- `myRobot.eyes`
+- `myRobot.voice`
+- `myRobot.buzzer`
+- `myRobot.camera`
+- `myRobot.sonar`
 
-## Version Check
-Run:
-```python
-from lesson_header import *
-show_v2_versions()
-```
+## Coding ideas to include
+Students should use:
+- variables
+- functions
+- `for` loops
+- `while` loops
+- `if / elif / else`
+- iteration through an array or list
+
+## Project idea
+The robot is entering an obstacle course challenge.
+It should:
+1. react to the course with eyes, sound, and speech
+2. move between obstacles using `myRobot.move`
+3. use sonar to decide what to do next
+4. count obstacles passed
+5. celebrate progress using a loop through eye colours

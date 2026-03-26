@@ -1,21 +1,28 @@
 # Lesson 15 — V2 Library Test Bench
 
-Mirror of Lesson 5 using the V2 aggregate robot object API.
+## Goal
+Use one notebook to confirm that the V2 robot object and its namespaces load and respond correctly.
 
-Use `myRobot = bot(...)` and the V2 namespaces such as `myRobot.move.forward(...)`, `myRobot.eyes.wink(...)`, and `myRobot.voice.say(...)`.
+This mirrors Lesson 5, but the tests are grouped under the V2 object.
 
-## V2 Namespace Map
-- `myRobot.move` for robot movement
-- `myRobot.eyes` for eye colour, blink, and wink
-- `myRobot.camera` for nod, shake, left, right, up, and down
-- `myRobot.voice` for speech, voice selection, phrase generation, and phrase playback
-- `myRobot.buzzer` for beep and note playback
-- `myRobot.sonar` / `myRobot.ultra` for distance sensing
-- `myRobot.line`, `myRobot.tracking`, `myRobot.avoidance`, and `myRobot.qrcode` for ROS-driven behaviours
+## Areas covered
+- movement
+- eyes
+- camera
+- speech
+- buzzer
+- sonar
+- infrared and line following
+- avoidance
+- tracking
+- QR code
+- animation
 
-## Version Check
-Run:
-```python
-from lesson_header import *
-show_v2_versions()
-```
+## How to use this lesson
+1. run the setup cell
+2. run `show_v2_status()`
+3. run `show_v2_versions()`
+4. test one namespace at a time
+
+## Important
+Some V2 namespaces wrap ROS services. Those services still need the matching node to be running.

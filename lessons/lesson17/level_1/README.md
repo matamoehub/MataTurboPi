@@ -1,21 +1,32 @@
-# Lesson 17 — Advanced Project V2
+# Lesson 17 — Advanced Project: Autonomous Obstacle Course With V2
 
-Mirror of Lesson 7 using the V2 aggregate robot object API.
+## Goal
+This lesson is for advanced students.
 
-Use `myRobot = bot(...)` and the V2 namespaces such as `myRobot.move.forward(...)`, `myRobot.eyes.wink(...)`, and `myRobot.voice.say(...)`.
+The purpose is not to copy a finished solution.
+The purpose is to become confident with the V2 robot object and its sensors, then design stronger control logic.
 
-## V2 Namespace Map
-- `myRobot.move` for robot movement
-- `myRobot.eyes` for eye colour, blink, and wink
-- `myRobot.camera` for nod, shake, left, right, up, and down
-- `myRobot.voice` for speech, voice selection, phrase generation, and phrase playback
-- `myRobot.buzzer` for beep and note playback
-- `myRobot.sonar` / `myRobot.ultra` for distance sensing
-- `myRobot.line`, `myRobot.tracking`, `myRobot.avoidance`, and `myRobot.qrcode` for ROS-driven behaviours
+## V2 namespaces for this lesson
+- `myRobot.move`
+- `myRobot.eyes`
+- `myRobot.voice`
+- `myRobot.buzzer`
+- `myRobot.camera`
+- `myRobot.sonar`
 
-## Version Check
-Run:
-```python
-from lesson_header import *
-show_v2_versions()
-```
+## What students should practise
+- variables
+- functions that return values
+- dictionary lookups
+- `for` loops
+- `while` loops
+- `if / elif / else`
+- a class to group robot state and behaviour
+
+## Teaching approach
+Do not hand students a completed navigation program.
+Instead:
+1. test each V2 namespace and sensor
+2. discuss what information it gives them
+3. plan the logic using pseudocode
+4. let students build and refine their own solution

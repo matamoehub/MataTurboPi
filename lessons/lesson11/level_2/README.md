@@ -1,21 +1,27 @@
-# Lesson 11 — Robot Demo V2
+# Lesson 11 — Level 2 (Two Cups) With V2
 
-Mirror of Lesson 1 using the V2 aggregate robot object API.
+## Goal
+Use the V2 robot object to plan and drive around two cups.
 
-Use `myRobot = bot(...)` and the V2 namespaces such as `myRobot.move.forward(...)`, `myRobot.eyes.wink(...)`, and `myRobot.voice.say(...)`.
+This mirrors Lesson 1 Level 2, but uses the standard movement namespace instead of custom movement functions.
+
+## Focus
+- movement timing
+- turning control
+- using variables and functions
+- making a two-cup plan before driving
+
+## Suggested flow
+1. test one short movement
+2. test one short turn
+3. write a simple plan
+4. drive around both cups
+5. stop safely
 
 ## V2 Namespace Map
-- `myRobot.move` for robot movement
-- `myRobot.eyes` for eye colour, blink, and wink
-- `myRobot.camera` for nod, shake, left, right, up, and down
-- `myRobot.voice` for speech, voice selection, phrase generation, and phrase playback
-- `myRobot.buzzer` for beep and note playback
-- `myRobot.sonar` / `myRobot.ultra` for distance sensing
-- `myRobot.line`, `myRobot.tracking`, `myRobot.avoidance`, and `myRobot.qrcode` for ROS-driven behaviours
-
-## Version Check
-Run:
-```python
-from lesson_header import *
-show_v2_versions()
-```
+- `myRobot.move.forward(...)`
+- `myRobot.move.turn_left(...)`
+- `myRobot.move.turn_right(...)`
+- `myRobot.move.drift_left(...)`
+- `myRobot.move.drift_right(...)`
+- `myRobot.stop()`
