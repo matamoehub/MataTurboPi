@@ -57,12 +57,41 @@ def _safe_start_dir() -> Path:
 def _find_repo_root(start: Path) -> Path:
     p = start.resolve()
     for _ in range(30):
-        if (p / "common").is_dir() and (p / "lessons").is_dir():
+        if (p / "lessons").is_dir():
             return p
         if p.parent == p:
             break
         p = p.parent
-    raise FileNotFoundError(f"Could not find repo root from {start}")
+    raise FileNotFoundError(f"Could not find lessons root from {start}")
+
+
+def _resolve_common_lib(root: Path) -> Path:
+    candidates = []
+    for env_name in ("MATA_COMMON_LIB_DIR", "LESSON_CACHE_COMMON_LIB_DIR"):
+        value = str(os.environ.get(env_name, "")).strip()
+        if value:
+            candidates.append(Path(value).expanduser())
+
+    candidates.extend([
+        Path("/opt/robot/students/lessons_cache/common/lib"),
+        Path("/opt/robot/students/lesson_cache/common/lib"),
+        root / "common" / "lib",
+    ])
+
+    seen = set()
+    for candidate in candidates:
+        resolved = candidate.resolve(strict=False)
+        key = str(resolved)
+        if key in seen:
+            continue
+        seen.add(key)
+        if candidate.is_dir():
+            return candidate
+
+    preferred = candidates[0] if candidates else (root / "common" / "lib")
+    raise FileNotFoundError(
+        "Could not find common/lib. Checked: " + ", ".join(str(p) for p in candidates)
+    )
 
 
 def _parse_domain_from_name(name: str) -> Optional[str]:
@@ -170,13 +199,17 @@ def setup(
         pass
 
     root = _find_repo_root(start)
-    common_lib = root / "common" / "lib"
+    common_lib = _resolve_common_lib(root)
     lessons_lib = root / "lessons" / "lib"
 
     for path in (common_lib, lessons_lib):
         s = str(path)
-        if s not in sys.path:
+        if path.exists() and s not in sys.path:
             sys.path.insert(0, s)
+
+    if verbose:
+        print(f"[lesson_loader] common_lib={common_lib}")
+        print(f"[lesson_loader] lessons_lib={lessons_lib}")
 
     bootstrap_path = common_lib / "bootstrap.py"
     spec = importlib.util.spec_from_file_location("lesson_bootstrap", str(bootstrap_path))
