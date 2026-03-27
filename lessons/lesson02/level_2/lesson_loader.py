@@ -166,7 +166,12 @@ def setup(
         print(f"[lesson_loader] common_lib={common_lib}")
         print(f"[lesson_loader] lessons_lib={lessons_lib}")
 
-    import bootstrap
+    bootstrap_path = common_lib / "bootstrap.py"
+    spec = importlib.util.spec_from_file_location("lesson_bootstrap", str(bootstrap_path))
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load bootstrap from {bootstrap_path}")
+    bootstrap = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bootstrap)
 
     domain = _resolve_domain(default_domain)
     # Ensure downstream ROS imports pick the intended domain.
