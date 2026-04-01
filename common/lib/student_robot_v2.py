@@ -316,7 +316,7 @@ class SonarNamespace(_BackendProxy):
 
     def wait(self, timeout_s: float = 2.0):
         backend = self._ensure()
-        return int(backend.wait_for_reading(timeout_s=timeout_s) or 0)
+        return int(backend.wait_for_reading(timeout_s=timeout_s))
 
     def distance_cm(self, filtered: bool = True):
         backend = self._ensure()

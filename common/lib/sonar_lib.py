@@ -99,7 +99,7 @@ class Sonar(Node):
             if self._last_mm is not None:
                 return int(self._last_mm)
             time.sleep(0.02)
-        return 0
+        raise TimeoutError(f"No sonar reading received from {self.topic} within {timeout_s}s")
 
     def get_distance_mm(self, filtered: bool = False) -> int:
         if filtered and self._samples:
@@ -113,6 +113,8 @@ class Sonar(Node):
         return int(round(float(value) / 10.0))
 
     def is_closer_than(self, threshold_cm: float, filtered: bool = True) -> bool:
+        if not self.has_reading():
+            return False
         value = self.get_distance_cm(filtered=filtered)
         return bool(value <= float(threshold_cm))
 
