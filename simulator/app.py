@@ -203,13 +203,20 @@ class SimApp:
             y = float(obs.get("y", 0.0))
             r = float(obs.get("radius_m", 0.04)) * SCALE
             px, py = self.world_to_canvas(x, y)
+            color_name = str(obs.get("color_name", obs.get("color", "cup"))).strip().lower()
+            palette = {
+                "red": ("#d94a4a", "#7d1f1f", "#f6d7d7"),
+                "green": ("#42a35a", "#1f5a2d", "#d9f1df"),
+                "blue": ("#3f7dd9", "#23497a", "#d9e6f8"),
+            }
+            outer_fill, outer_outline, inner_fill = palette.get(color_name, ("#c86a3a", "#7a3f1e", "#f3d7c3"))
             self.canvas.create_oval(
                 px - r,
                 py - r,
                 px + r,
                 py + r,
-                fill="#c86a3a",
-                outline="#7a3f1e",
+                fill=outer_fill,
+                outline=outer_outline,
                 width=2,
                 tags="obstacle",
             )
@@ -218,11 +225,11 @@ class SimApp:
                 py - r * 0.45,
                 px + r * 0.45,
                 py + r * 0.45,
-                fill="#f3d7c3",
+                fill=inner_fill,
                 outline="",
                 tags="obstacle",
             )
-            self.canvas.create_text(px, py + r + 12, text=str(obs.get("id", "cup")), fill="#6b4e3d", tags="obstacle")
+            self.canvas.create_text(px, py + r + 12, text=str(obs.get("id", "cup")), fill="#374151", tags="obstacle")
 
     def _local_to_canvas(self, cx: float, cy: float, heading: float, lx: float, ly: float):
         wx = lx * math.cos(heading) - ly * math.sin(heading)

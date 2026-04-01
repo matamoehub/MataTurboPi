@@ -12,63 +12,72 @@
       "kind": "cup",
       "x": -0.2,
       "y": 0.2,
-      "radius_m": 0.04
+      "radius_m": 0.04,
+      "color_name": "blue"
     },
     {
       "id": "cup_2",
       "kind": "cup",
       "x": 0.0,
       "y": 0.2,
-      "radius_m": 0.04
+      "radius_m": 0.04,
+      "color_name": "red"
     },
     {
       "id": "cup_3",
       "kind": "cup",
       "x": 0.2,
       "y": 0.2,
-      "radius_m": 0.04
+      "radius_m": 0.04,
+      "color_name": "blue"
     },
     {
       "id": "cup_4",
       "kind": "cup",
       "x": -0.2,
       "y": 0.4,
-      "radius_m": 0.04
+      "radius_m": 0.04,
+      "color_name": "blue"
     },
     {
       "id": "cup_5",
       "kind": "cup",
       "x": 0.0,
       "y": 0.4,
-      "radius_m": 0.04
+      "radius_m": 0.04,
+      "color_name": "green"
     },
     {
       "id": "cup_6",
       "kind": "cup",
       "x": 0.2,
       "y": 0.4,
-      "radius_m": 0.04
+      "radius_m": 0.04,
+      "color_name": "blue"
     },
     {
       "id": "cup_7",
       "kind": "cup",
       "x": -0.2,
       "y": 0.6,
-      "radius_m": 0.04
+      "radius_m": 0.04,
+      "color_name": "blue"
     },
     {
       "id": "cup_8",
       "kind": "cup",
       "x": 0.0,
       "y": 0.6,
-      "radius_m": 0.04
+      "radius_m": 0.04,
+      "color_name": "blue"
     },
     {
       "id": "cup_9",
       "kind": "cup",
       "x": 0.2,
       "y": 0.6,
-      "radius_m": 0.04
+      "radius_m": 0.04,
+      "color_name": "blue"
     }
   ]
 }

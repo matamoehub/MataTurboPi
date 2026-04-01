@@ -14,6 +14,7 @@ Students should test the robot's capabilities first, then build a stronger auton
 - `tts_lib`
 - `buzzer_lib`
 - `camera_lib`
+- `vision_lib`
 - `sonar_lib` / `ultrasonic_lib`
 
 ## What students should practise
@@ -34,6 +35,22 @@ Instead:
 2. discuss what information each one gives them
 3. plan the logic using pseudocode
 4. let students build and refine their own solution
+
+## Vision workflow
+Use the camera and colour tools as a test-and-decide sensor, not as a finished solution.
+
+Suggested workflow:
+1. use `vision_lib.get_vision().capture()` to check that the cups are visible
+2. point the camera so the target cup is near the middle of the image
+3. run `calibrate_color('red')` on the target cup
+4. run `show_color('red')` to check the highlighted result
+5. run `which_object('red')` to ask which visible cup is red
+6. save that result in a variable and decide what the robot should do next
+
+If the result is poor:
+- move a little closer
+- center the camera again
+- recalibrate and test again
 
 ## Suggested design flow
 A strong advanced project might follow this structure:
