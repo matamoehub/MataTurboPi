@@ -316,15 +316,15 @@ class SonarNamespace(_BackendProxy):
 
     def wait(self, timeout_s: float = 2.0):
         backend = self._ensure()
-        return backend.wait_for_reading(timeout_s=timeout_s)
+        return int(backend.wait_for_reading(timeout_s=timeout_s) or 0)
 
     def distance_cm(self, filtered: bool = True):
         backend = self._ensure()
-        return backend.get_distance_cm(filtered=filtered)
+        return int(backend.get_distance_cm(filtered=filtered) or 0)
 
     def distance_mm(self, filtered: bool = True):
         backend = self._ensure()
-        return backend.get_distance_mm(filtered=filtered)
+        return int(backend.get_distance_mm(filtered=filtered) or 0)
 
     def is_closer_than(self, threshold_cm: float, filtered: bool = True):
         backend = self._ensure()
