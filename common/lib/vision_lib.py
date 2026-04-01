@@ -2,16 +2,17 @@
 from __future__ import annotations
 
 """
-Notebook-friendly colour vision helper.
+Notebook-friendly camera and vision helper.
 
 Uses the OpenCV pattern already taught in Lesson 3 and wraps it in a
 singleton-safe library that can:
 - capture a camera image
 - detect red / green / blue objects
-- display the annotated image inline in Jupyter
+- run MediaPipe face / hand / pose analysis
+- display annotated images inline in Jupyter
 - calibrate colour HSV ranges from the notebook
 """
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 import copy
 import os
@@ -62,6 +63,17 @@ def _require_runtime():
     return cv2, np
 
 
+def _require_mediapipe_runtime():
+    try:
+        import mediapipe as mp  # type: ignore
+    except Exception as e:  # pragma: no cover - depends on robot runtime
+        raise RuntimeError(
+            "vision_lib MediaPipe features require the mediapipe package on the robot image. "
+            f"Import failed: {e}"
+        ) from e
+    return mp
+
+
 def _display_png_bytes(png_bytes: bytes) -> bool:
     try:  # pragma: no cover - notebook-only behavior
         from IPython.display import Image, display
@@ -93,6 +105,77 @@ def _expand_hue_wrap(lower: Tuple[int, int, int], upper: Tuple[int, int, int]) -
             ((0, ls, lv), (uh - 180, us, uv)),
         ]
     return [((max(0, lh), ls, lv), (min(179, uh), us, uv))]
+
+
+def _clamp_pixel(value: float, maximum: int) -> int:
+    return max(0, min(int(round(value)), maximum))
+
+
+def _hand_landmark_xy(landmarks, index: int) -> Tuple[float, float]:
+    point = landmarks[index]
+    return float(point.x), float(point.y)
+
+
+def _classify_hand_gesture(landmarks, handedness: str) -> Tuple[str, Dict[str, bool]]:
+    wrist_x, wrist_y = _hand_landmark_xy(landmarks, 0)
+    thumb_tip_x, thumb_tip_y = _hand_landmark_xy(landmarks, 4)
+    thumb_ip_x, thumb_ip_y = _hand_landmark_xy(landmarks, 3)
+    index_tip_y = _hand_landmark_xy(landmarks, 8)[1]
+    index_pip_y = _hand_landmark_xy(landmarks, 6)[1]
+    middle_tip_y = _hand_landmark_xy(landmarks, 12)[1]
+    middle_pip_y = _hand_landmark_xy(landmarks, 10)[1]
+    ring_tip_y = _hand_landmark_xy(landmarks, 16)[1]
+    ring_pip_y = _hand_landmark_xy(landmarks, 14)[1]
+    pinky_tip_y = _hand_landmark_xy(landmarks, 20)[1]
+    pinky_pip_y = _hand_landmark_xy(landmarks, 18)[1]
+
+    fingers = {
+        "thumb": (thumb_tip_x < thumb_ip_x) if handedness.lower().startswith("right") else (thumb_tip_x > thumb_ip_x),
+        "index": index_tip_y < index_pip_y,
+        "middle": middle_tip_y < middle_pip_y,
+        "ring": ring_tip_y < ring_pip_y,
+        "pinky": pinky_tip_y < pinky_pip_y,
+    }
+
+    if all(fingers.values()):
+        return "open_palm", fingers
+    if not any(fingers.values()):
+        return "fist", fingers
+    if fingers["thumb"] and not fingers["index"] and not fingers["middle"] and not fingers["ring"] and not fingers["pinky"]:
+        if thumb_tip_y < wrist_y and thumb_ip_y < wrist_y:
+            return "thumbs_up", fingers
+        return "thumb_out", fingers
+    if fingers["index"] and not fingers["middle"] and not fingers["ring"] and not fingers["pinky"]:
+        return "point", fingers
+    if fingers["index"] and fingers["middle"] and not fingers["ring"] and not fingers["pinky"]:
+        return "peace", fingers
+    if fingers["index"] and fingers["pinky"] and not fingers["middle"] and not fingers["ring"]:
+        return "rock", fingers
+    return "unknown", fingers
+
+
+def _classify_pose(landmarks) -> str:
+    left_shoulder = landmarks[11]
+    right_shoulder = landmarks[12]
+    left_wrist = landmarks[15]
+    right_wrist = landmarks[16]
+    left_elbow = landmarks[13]
+    right_elbow = landmarks[14]
+    nose = landmarks[0]
+
+    wrists_above_shoulders = left_wrist.y < left_shoulder.y and right_wrist.y < right_shoulder.y
+    wrists_out_wide = abs(left_wrist.y - left_shoulder.y) < 0.10 and abs(right_wrist.y - right_shoulder.y) < 0.10
+    elbows_out_wide = abs(left_elbow.y - left_shoulder.y) < 0.12 and abs(right_elbow.y - right_shoulder.y) < 0.12
+
+    if wrists_above_shoulders:
+        return "hands_up"
+    if wrists_out_wide and elbows_out_wide:
+        return "t_pose"
+    if left_wrist.y < nose.y and right_wrist.y >= right_shoulder.y:
+        return "left_hand_up"
+    if right_wrist.y < nose.y and left_wrist.y >= left_shoulder.y:
+        return "right_hand_up"
+    return "neutral"
 
 
 class Vision:
@@ -163,6 +246,12 @@ class Vision:
         if not ok or frame is None:
             raise RuntimeError("Camera opened, but no image frame was captured")
         return frame
+
+    def _capture_rgb_frame(self):
+        cv2, _np = _require_runtime()
+        frame_bgr = self.capture_frame()
+        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        return frame_bgr, frame_rgb
 
     def _write_image(self, frame_bgr, save_path: Optional[str] = None) -> str:
         cv2, _np = _require_runtime()
@@ -275,6 +364,268 @@ class Vision:
             "path": path,
             "ranges": ranges,
         }
+
+    def detect_faces(
+        self,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        min_confidence: float = 0.5,
+        model_selection: int = 0,
+    ) -> Dict[str, Any]:
+        cv2, _np = _require_runtime()
+        mp = _require_mediapipe_runtime()
+        frame_bgr, frame_rgb = self._capture_rgb_frame()
+        annotated = frame_bgr.copy()
+        h, w = annotated.shape[:2]
+        faces: List[Dict[str, Any]] = []
+
+        with mp.solutions.face_detection.FaceDetection(
+            model_selection=int(model_selection),
+            min_detection_confidence=float(min_confidence),
+        ) as detector:
+            result = detector.process(frame_rgb)
+
+        detections = getattr(result, "detections", None) or []
+        for idx, detection in enumerate(detections, start=1):
+            bbox = detection.location_data.relative_bounding_box
+            x = _clamp_pixel(bbox.xmin * w, w - 1)
+            y = _clamp_pixel(bbox.ymin * h, h - 1)
+            bw = max(1, _clamp_pixel(bbox.width * w, w))
+            bh = max(1, _clamp_pixel(bbox.height * h, h))
+            face = {
+                "index": idx,
+                "x": x,
+                "y": y,
+                "w": bw,
+                "h": bh,
+                "cx": int(x + bw / 2),
+                "cy": int(y + bh / 2),
+                "score": float(detection.score[0]) if getattr(detection, "score", None) else 0.0,
+            }
+            faces.append(face)
+            cv2.rectangle(annotated, (x, y), (x + bw, y + bh), (0, 255, 0), 2)
+            cv2.putText(
+                annotated,
+                f"face #{idx}",
+                (x, max(18, y - 6)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (0, 255, 0),
+                2,
+            )
+
+        path = None
+        if show:
+            info = self.show_image(annotated, save_path=save_path, title=f"Detected faces: {len(faces)}")
+            path = info["path"]
+        elif save_path:
+            path = self._write_image(annotated, save_path=save_path)
+
+        return {
+            "found": bool(faces),
+            "count": len(faces),
+            "faces": faces,
+            "path": path,
+        }
+
+    def show_faces(self, show: bool = True, save_path: Optional[str] = None, min_confidence: float = 0.5):
+        return self.detect_faces(show=show, save_path=save_path, min_confidence=min_confidence)
+
+    def recognize_faces(self, show: bool = True, save_path: Optional[str] = None, min_confidence: float = 0.5):
+        return self.detect_faces(show=show, save_path=save_path, min_confidence=min_confidence)
+
+    def recognize_hands(
+        self,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        max_hands: int = 2,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+    ) -> Dict[str, Any]:
+        cv2, _np = _require_runtime()
+        mp = _require_mediapipe_runtime()
+        frame_bgr, frame_rgb = self._capture_rgb_frame()
+        annotated = frame_bgr.copy()
+        h, w = annotated.shape[:2]
+        hands_found: List[Dict[str, Any]] = []
+
+        with mp.solutions.hands.Hands(
+            static_image_mode=True,
+            max_num_hands=int(max_hands),
+            min_detection_confidence=float(min_detection_confidence),
+            min_tracking_confidence=float(min_tracking_confidence),
+        ) as detector:
+            result = detector.process(frame_rgb)
+
+        multi_landmarks = getattr(result, "multi_hand_landmarks", None) or []
+        multi_handedness = getattr(result, "multi_handedness", None) or []
+        for idx, landmarks in enumerate(multi_landmarks, start=1):
+            handedness_label = "unknown"
+            if idx - 1 < len(multi_handedness):
+                try:
+                    handedness_label = multi_handedness[idx - 1].classification[0].label
+                except Exception:
+                    handedness_label = "unknown"
+
+            xs = [_clamp_pixel(pt.x * w, w - 1) for pt in landmarks.landmark]
+            ys = [_clamp_pixel(pt.y * h, h - 1) for pt in landmarks.landmark]
+            gesture, fingers = _classify_hand_gesture(landmarks.landmark, handedness_label)
+            hand = {
+                "index": idx,
+                "handedness": handedness_label,
+                "gesture": gesture,
+                "fingers": fingers,
+                "bbox": {
+                    "x": min(xs),
+                    "y": min(ys),
+                    "w": max(xs) - min(xs),
+                    "h": max(ys) - min(ys),
+                },
+            }
+            hands_found.append(hand)
+
+            mp.solutions.drawing_utils.draw_landmarks(
+                annotated,
+                landmarks,
+                mp.solutions.hands.HAND_CONNECTIONS,
+            )
+            cv2.putText(
+                annotated,
+                f"{handedness_label} {gesture}",
+                (hand["bbox"]["x"], max(18, hand["bbox"]["y"] - 8)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (255, 255, 0),
+                2,
+            )
+
+        path = None
+        if show:
+            info = self.show_image(annotated, save_path=save_path, title=f"Detected hands: {len(hands_found)}")
+            path = info["path"]
+        elif save_path:
+            path = self._write_image(annotated, save_path=save_path)
+
+        return {
+            "found": bool(hands_found),
+            "count": len(hands_found),
+            "hands": hands_found,
+            "path": path,
+        }
+
+    def show_hands(
+        self,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        max_hands: int = 2,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+    ):
+        return self.recognize_hands(
+            show=show,
+            save_path=save_path,
+            max_hands=max_hands,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence,
+        )
+
+    def detect_pose(
+        self,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+    ) -> Dict[str, Any]:
+        cv2, _np = _require_runtime()
+        mp = _require_mediapipe_runtime()
+        frame_bgr, frame_rgb = self._capture_rgb_frame()
+        annotated = frame_bgr.copy()
+
+        with mp.solutions.pose.Pose(
+            static_image_mode=True,
+            min_detection_confidence=float(min_detection_confidence),
+            min_tracking_confidence=float(min_tracking_confidence),
+        ) as detector:
+            result = detector.process(frame_rgb)
+
+        pose_landmarks = getattr(result, "pose_landmarks", None)
+        pose = {
+            "found": bool(pose_landmarks),
+            "label": "none",
+            "landmarks": {},
+        }
+        if pose_landmarks is not None:
+            mp.solutions.drawing_utils.draw_landmarks(
+                annotated,
+                pose_landmarks,
+                mp.solutions.pose.POSE_CONNECTIONS,
+            )
+            key_names = {
+                "nose": 0,
+                "left_shoulder": 11,
+                "right_shoulder": 12,
+                "left_elbow": 13,
+                "right_elbow": 14,
+                "left_wrist": 15,
+                "right_wrist": 16,
+                "left_hip": 23,
+                "right_hip": 24,
+            }
+            for name, idx in key_names.items():
+                point = pose_landmarks.landmark[idx]
+                pose["landmarks"][name] = {
+                    "x": float(point.x),
+                    "y": float(point.y),
+                    "z": float(point.z),
+                    "visibility": float(point.visibility),
+                }
+            pose["label"] = _classify_pose(pose_landmarks.landmark)
+            cv2.putText(
+                annotated,
+                f"pose: {pose['label']}",
+                (10, 24),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.65,
+                (0, 255, 255),
+                2,
+            )
+
+        path = None
+        if show:
+            info = self.show_image(annotated, save_path=save_path, title=f"Pose: {pose['label']}")
+            path = info["path"]
+        elif save_path:
+            path = self._write_image(annotated, save_path=save_path)
+        pose["path"] = path
+        return pose
+
+    def show_pose(
+        self,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+    ):
+        return self.detect_pose(
+            show=show,
+            save_path=save_path,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence,
+        )
+
+    def recognize_pose(
+        self,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+    ):
+        return self.detect_pose(
+            show=show,
+            save_path=save_path,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence,
+        )
 
     def show_color(self, color: str, show: bool = True, save_path: Optional[str] = None, min_area: Optional[int] = None) -> Dict[str, Any]:
         return self.find_color_objects(color=color, show=show, save_path=save_path, min_area=min_area)
@@ -417,3 +768,35 @@ def get_color_profile(*args, **kwargs):
 
 def show_profiles():
     return get_vision().show_profiles()
+
+
+def detect_faces(*args, **kwargs):
+    return get_vision().detect_faces(*args, **kwargs)
+
+
+def show_faces(*args, **kwargs):
+    return get_vision().show_faces(*args, **kwargs)
+
+
+def recognize_faces(*args, **kwargs):
+    return get_vision().recognize_faces(*args, **kwargs)
+
+
+def recognize_hands(*args, **kwargs):
+    return get_vision().recognize_hands(*args, **kwargs)
+
+
+def show_hands(*args, **kwargs):
+    return get_vision().show_hands(*args, **kwargs)
+
+
+def detect_pose(*args, **kwargs):
+    return get_vision().detect_pose(*args, **kwargs)
+
+
+def show_pose(*args, **kwargs):
+    return get_vision().show_pose(*args, **kwargs)
+
+
+def recognize_pose(*args, **kwargs):
+    return get_vision().recognize_pose(*args, **kwargs)

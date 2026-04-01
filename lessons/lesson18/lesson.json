@@ -1,0 +1,12 @@
+{
+  "id": "lesson18",
+  "title": "Lesson 18 \u2014 MediaPipe Vision V2",
+  "description": "Mirror of Lesson 8 using the V2 aggregate robot object API.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (MediaPipe Vision)",
+      "entry": "Lesson18.ipynb"
+    }
+  ]
+}

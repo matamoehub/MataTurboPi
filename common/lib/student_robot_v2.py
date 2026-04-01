@@ -19,7 +19,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.2.0"
+__version__ = "2.3.0"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -301,6 +301,97 @@ class VisionNamespace(_BackendProxy):
     def show_profiles(self):
         backend = self._ensure()
         return backend.show_profiles()
+
+    def detect_faces(self, show: bool = True, save_path: Optional[str] = None, min_confidence: float = 0.5):
+        backend = self._ensure()
+        return backend.detect_faces(show=show, save_path=save_path, min_confidence=min_confidence)
+
+    def show_faces(self, show: bool = True, save_path: Optional[str] = None, min_confidence: float = 0.5):
+        backend = self._ensure()
+        return backend.show_faces(show=show, save_path=save_path, min_confidence=min_confidence)
+
+    def recognize_faces(self, show: bool = True, save_path: Optional[str] = None, min_confidence: float = 0.5):
+        backend = self._ensure()
+        return backend.recognize_faces(show=show, save_path=save_path, min_confidence=min_confidence)
+
+    def recognize_hands(
+        self,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        max_hands: int = 2,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+    ):
+        backend = self._ensure()
+        return backend.recognize_hands(
+            show=show,
+            save_path=save_path,
+            max_hands=max_hands,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence,
+        )
+
+    def show_hands(
+        self,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        max_hands: int = 2,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+    ):
+        backend = self._ensure()
+        return backend.show_hands(
+            show=show,
+            save_path=save_path,
+            max_hands=max_hands,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence,
+        )
+
+    def detect_pose(
+        self,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+    ):
+        backend = self._ensure()
+        return backend.detect_pose(
+            show=show,
+            save_path=save_path,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence,
+        )
+
+    def show_pose(
+        self,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+    ):
+        backend = self._ensure()
+        return backend.show_pose(
+            show=show,
+            save_path=save_path,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence,
+        )
+
+    def recognize_pose(
+        self,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+    ):
+        backend = self._ensure()
+        return backend.recognize_pose(
+            show=show,
+            save_path=save_path,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence,
+        )
 
 
 class VoiceNamespace(_BackendProxy):

@@ -1,0 +1,233 @@
+MataTurboPi V2 Library Guide
+Updated: 2026-04-02
+
+Start
+from lesson_header import *
+myRobot = bot(base_speed=300)
+
+Status / Versions
+show_v2_status()
+show_v2_versions()
+myRobot.status()
+myRobot.show_versions()
+
+Movement
+myRobot.move.forward(seconds=0.5, speed=None)
+myRobot.move.backward(seconds=0.5, speed=None)
+myRobot.move.left(seconds=0.5, speed=None)
+myRobot.move.right(seconds=0.5, speed=None)
+myRobot.move.turn_left(seconds=0.5, speed=None)
+myRobot.move.turn_right(seconds=0.5, speed=None)
+myRobot.move.diagonal_left(seconds=0.8, speed=None)
+myRobot.move.diagonal_right(seconds=0.8, speed=None)
+myRobot.move.drift_left(seconds=1.0, speed=None, turn_blend=0.55)
+myRobot.move.drift_right(seconds=1.0, speed=None, turn_blend=0.55)
+myRobot.move.drive_for(vx, vy, seconds, speed=None)
+myRobot.move.run(move_name, seconds=0.5, speed=None)
+myRobot.move.run_async(move_name, seconds=0.5, speed=None)
+myRobot.stop()
+
+Movement backend switching
+myRobot.use_base_moves()
+myRobot.use_robot_moves()
+myRobot.use_student_moves()
+myRobot.move.use_base()
+myRobot.move.use_robot_moves()
+myRobot.move.use_student()
+
+Examples
+myRobot.move.forward(0.3)
+myRobot.move.turn_left(0.2)
+myRobot.move.drift_right(0.8, turn_blend=0.7)
+myRobot.stop()
+
+Eyes
+myRobot.eyes.set_both(r, g, b)
+myRobot.eyes.set_both((r, g, b))
+myRobot.eyes.left(r, g, b)
+myRobot.eyes.right(r, g, b)
+myRobot.eyes.color(r, g, b)
+myRobot.eyes.set_color(r, g, b)
+myRobot.eyes.on(r=0, g=255, b=120)
+myRobot.eyes.off()
+myRobot.eyes.blink(every_s=3.0, blank_s=0.5)
+myRobot.eyes.start_blink(every_s=3.0, blank_s=0.5)
+myRobot.eyes.blink_once(blank_s=0.5)
+myRobot.eyes.stop_blink()
+myRobot.eyes.wink(side="left", blank_s=0.5)
+
+Examples
+myRobot.eyes.set_both((0, 180, 255))
+myRobot.eyes.left(255, 0, 0)
+myRobot.eyes.wink("right")
+myRobot.eyes.off()
+
+Camera
+myRobot.camera.center()
+myRobot.camera.center_all()
+myRobot.camera.left(amplitude=250, hold_s=0.15)
+myRobot.camera.right(amplitude=250, hold_s=0.15)
+myRobot.camera.up(amplitude=250, hold_s=0.15)
+myRobot.camera.down(amplitude=250, hold_s=0.15)
+myRobot.camera.glance_left(amplitude=250, hold_s=0.15)
+myRobot.camera.glance_right(amplitude=250, hold_s=0.15)
+myRobot.camera.look_left(amplitude=250, hold_s=0.15)
+myRobot.camera.look_right(amplitude=250, hold_s=0.15)
+myRobot.camera.look_up(amplitude=250, hold_s=0.15)
+myRobot.camera.look_down(amplitude=250, hold_s=0.15)
+myRobot.camera.nod(depth=250, speed_s=None)
+myRobot.camera.shake(width=250, speed_s=None)
+myRobot.camera.wiggle(cycles=2, amplitude=200, speed_s=None)
+myRobot.camera.tiny_wiggle(seconds=2.0, amplitude=90, speed_s=0.12)
+
+Examples
+myRobot.camera.glance_left()
+myRobot.camera.shake()
+myRobot.camera.center_all()
+
+Vision - Colour Detection
+myRobot.vision.capture(show=True, save_path=None, title="Camera Capture")
+myRobot.vision.show_color(color, show=True, save_path=None, min_area=None)
+myRobot.vision.find_color(color, show=True, save_path=None, min_area=None)
+myRobot.vision.which_object(color, show=True, save_path=None, min_area=None)
+myRobot.vision.calibrate_color(color, box_size=80, hue_pad=12, sat_pad=70, val_pad=70, show=True, save_path=None, persist=True)
+myRobot.vision.set_color_profile(color, lower_hsv, upper_hsv=None)
+myRobot.vision.get_color_profile(color)
+myRobot.vision.show_profiles()
+
+Examples
+myRobot.vision.capture()
+myRobot.vision.calibrate_color("red")
+myRobot.vision.show_color("red")
+red_cup_index = myRobot.vision.which_object("red")
+print(red_cup_index)
+
+Vision - MediaPipe Features
+myRobot.vision.detect_faces(show=True, save_path=None, min_confidence=0.5)
+myRobot.vision.show_faces(show=True, save_path=None, min_confidence=0.5)
+myRobot.vision.recognize_faces(show=True, save_path=None, min_confidence=0.5)
+myRobot.vision.recognize_hands(show=True, save_path=None, max_hands=2, min_detection_confidence=0.5, min_tracking_confidence=0.5)
+myRobot.vision.show_hands(show=True, save_path=None, max_hands=2, min_detection_confidence=0.5, min_tracking_confidence=0.5)
+myRobot.vision.detect_pose(show=True, save_path=None, min_detection_confidence=0.5, min_tracking_confidence=0.5)
+myRobot.vision.show_pose(show=True, save_path=None, min_detection_confidence=0.5, min_tracking_confidence=0.5)
+myRobot.vision.recognize_pose(show=True, save_path=None, min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
+MediaPipe examples
+faces = myRobot.vision.detect_faces()
+print(faces)
+
+hands = myRobot.vision.recognize_hands()
+print(hands)
+
+pose = myRobot.vision.detect_pose()
+print(pose)
+
+if faces["count"] > 0:
+    myRobot.voice.say("I can see a face", block=True)
+
+if hands["hands"] and hands["hands"][0]["gesture"] == "thumbs_up":
+    myRobot.buzzer.beep(note="C5", duration_s=0.15)
+
+if pose["label"] == "hands_up":
+    myRobot.eyes.set_both(0, 255, 0)
+
+Voice / TTS
+myRobot.voice.say(text, block=True, voice=None)
+myRobot.voice.speak(text, block=True, voice=None)
+myRobot.voice.voices()
+myRobot.voice.show_voices()
+myRobot.voice.select(voice=None, number=None)
+myRobot.voice.select_voice(voice=None, number=None)
+myRobot.voice.select_voice_number(number)
+myRobot.voice.generate(key, text, voice=None, length_scale="0.98", sentence_silence="0.08")
+myRobot.voice.generate_phrase(key, text, voice=None, length_scale="0.98", sentence_silence="0.08")
+myRobot.voice.play(key, block=True)
+myRobot.voice.play_phrase(key, block=True)
+
+Examples
+myRobot.voice.say("Hello")
+myRobot.voice.show_voices()
+myRobot.voice.select_voice_number(1)
+myRobot.voice.generate_phrase("intro", "I found the red cup")
+myRobot.voice.play_phrase("intro")
+
+Buzzer / Horn
+myRobot.horn(block=True)
+myRobot.buzzer.horn(block=True)
+myRobot.buzzer.beep(freq=2000, duration_s=0.15)
+myRobot.buzzer.beep(note="C4", duration_s=0.15)
+myRobot.buzzer.play_notes(score, bpm=120)
+myRobot.buzzer.play_notes_music_mode(score, bpm=120)
+myRobot.buzzer.play_melody(notes, bpm=120)
+
+Examples
+myRobot.horn()
+myRobot.buzzer.beep(note="C4", duration_s=0.15)
+myRobot.buzzer.play_notes("C4 D4 E4", bpm=120)
+
+Sonar
+myRobot.sonar.wait(timeout_s=2.0)
+myRobot.sonar.distance_cm(filtered=True)
+myRobot.sonar.distance_mm(filtered=True)
+myRobot.sonar.is_closer_than(threshold_cm, filtered=True)
+
+Aliases
+myRobot.ultrasonic.distance_cm()
+myRobot.ultra.distance_cm()
+
+Examples
+distance_cm = myRobot.sonar.distance_cm(filtered=True)
+if 0 < distance_cm <= 10:
+    myRobot.stop()
+
+Line / Tracking / Avoidance / QR / Infrared
+myRobot.line.use_pid()
+myRobot.line.use_camera()
+myRobot.tracking
+myRobot.avoidance
+myRobot.qrcode
+myRobot.infrared
+
+Animation backend
+myRobot.anim
+myRobot.anim.horn_normal()
+myRobot.anim.set_eye_color((0, 255, 0))
+
+Combined example - sonar plus red cup detection
+from lesson_header import *
+import time
+
+myRobot = bot(base_speed=300)
+
+while True:
+    distance_cm = myRobot.sonar.distance_cm(filtered=True)
+
+    if distance_cm == 0:
+        myRobot.move.forward(0.1)
+    elif distance_cm > 10:
+        myRobot.move.forward(0.08)
+    else:
+        myRobot.stop()
+        myRobot.camera.center_all()
+        myRobot.vision.calibrate_color("red")
+        myRobot.vision.show_color("red")
+        red_cup_index = myRobot.vision.which_object("red")
+        myRobot.voice.say(f"The red cup is cup {red_cup_index}.", block=True)
+        break
+
+    time.sleep(0.1)
+
+Combined example - gesture controlled response
+from lesson_header import *
+
+myRobot = bot(base_speed=300)
+result = myRobot.vision.recognize_hands()
+if result["hands"]:
+    gesture = result["hands"][0]["gesture"]
+    if gesture == "thumbs_up":
+        myRobot.voice.say("Starting now", block=True)
+        myRobot.move.forward(0.3)
+    elif gesture == "peace":
+        myRobot.eyes.set_both(180, 0, 255)
+    else:
+        myRobot.voice.say(f"I saw {gesture}", block=True)

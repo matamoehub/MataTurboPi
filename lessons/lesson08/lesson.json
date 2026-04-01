@@ -1,0 +1,12 @@
+{
+  "id": "lesson08",
+  "title": "Lesson 8 \u2014 Rock Paper Scissors Vision",
+  "description": "Use MediaPipe hand gesture recognition to build a rock-paper-scissors game with the notebook-friendly V1 lesson libraries.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (MediaPipe Vision)",
+      "entry": "Lesson08.ipynb"
+    }
+  ]
+}

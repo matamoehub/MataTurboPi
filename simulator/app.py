@@ -231,6 +231,48 @@ class SimApp:
             )
             self.canvas.create_text(px, py + r + 12, text=str(obs.get("id", "cup")), fill="#374151", tags="obstacle")
 
+    def draw_people(self, st):
+        self.canvas.delete("people")
+        course = st.get("course", {})
+        for person in course.get("people", []):
+            x = float(person.get("x", 0.0))
+            y = float(person.get("y", 0.0))
+            px, py = self.world_to_canvas(x, y)
+            pose = str(person.get("pose_label", "neutral") or "neutral")
+            gesture = str(person.get("hand_gesture", "unknown") or "unknown")
+            body_h = 70
+            body_color = {
+                "hands_up": "#22c55e",
+                "t_pose": "#60a5fa",
+                "left_hand_up": "#e879f9",
+                "right_hand_up": "#f472b6",
+            }.get(pose, "#94a3b8")
+            head_r = 10
+            self.canvas.create_oval(
+                px - head_r, py - body_h * 0.72 - head_r,
+                px + head_r, py - body_h * 0.72 + head_r,
+                fill="#f2d0b1", outline="#8b5e3c", width=2, tags="people",
+            )
+            self.canvas.create_line(px, py - body_h * 0.58, px, py - body_h * 0.1, fill=body_color, width=4, tags="people")
+            if pose == "hands_up":
+                arms = [(-18, -36, -28, -56), (18, -36, 28, -56)]
+            elif pose == "t_pose":
+                arms = [(-10, -32, -34, -32), (10, -32, 34, -32)]
+            elif pose == "left_hand_up":
+                arms = [(-18, -36, -28, -56), (10, -30, 28, -22)]
+            elif pose == "right_hand_up":
+                arms = [(-10, -30, -28, -22), (18, -36, 28, -56)]
+            else:
+                arms = [(-10, -28, -26, -20), (10, -28, 26, -20)]
+            for x1, y1, x2, y2 in arms:
+                self.canvas.create_line(px + x1, py + y1, px + x2, py + y2, fill=body_color, width=4, tags="people")
+            self.canvas.create_line(px, py - 8, px - 14, py + 20, fill=body_color, width=4, tags="people")
+            self.canvas.create_line(px, py - 8, px + 14, py + 20, fill=body_color, width=4, tags="people")
+            if bool(person.get("face_visible", True)):
+                self.canvas.create_rectangle(px - 24, py - 72, px + 24, py - 28, outline="#22c55e", width=2, tags="people")
+            self.canvas.create_text(px, py + 34, text=str(person.get("id", "person")), fill="#374151", tags="people")
+            self.canvas.create_text(px, py + 48, text=f"{gesture} / {pose}", fill="#52606d", tags="people", font=("TkDefaultFont", 8))
+
     def _local_to_canvas(self, cx: float, cy: float, heading: float, lx: float, ly: float):
         wx = lx * math.cos(heading) - ly * math.sin(heading)
         wy = lx * math.sin(heading) + ly * math.cos(heading)
@@ -521,6 +563,7 @@ class SimApp:
         self.draw_grid()
         self.draw_trace(st.get("trace", []))
         self.draw_obstacles(st)
+        self.draw_people(st)
         self.draw_robot(st)
         self.update_side_panel(st)
         robot = st["robot"]

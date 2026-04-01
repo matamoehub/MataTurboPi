@@ -1,0 +1,32 @@
+{
+  "id": "lesson08_level_1",
+  "title": "Lesson 08 Level 1 - MediaPipe Vision",
+  "robot_start": {
+    "x": 0.0,
+    "y": 0.0,
+    "heading_deg": 0.0
+  },
+  "obstacles": [],
+  "people": [
+    {
+      "id": "person_1",
+      "kind": "person",
+      "x": 0.0,
+      "y": 0.95,
+      "face_visible": true,
+      "hand_gesture": "thumbs_up",
+      "pose_label": "hands_up",
+      "handedness": "right"
+    },
+    {
+      "id": "person_2",
+      "kind": "person",
+      "x": -0.35,
+      "y": 1.25,
+      "face_visible": true,
+      "hand_gesture": "peace",
+      "pose_label": "t_pose",
+      "handedness": "left"
+    }
+  ]
+}

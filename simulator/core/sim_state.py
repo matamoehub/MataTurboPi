@@ -76,6 +76,7 @@ def _default_state() -> Dict[str, Any]:
             "id": "default",
             "title": "Default Empty Course",
             "obstacles": [],
+            "people": [],
         },
         "trace": [],
         "last_command": "",
@@ -104,11 +105,12 @@ def _load_course_config(lesson_id: Optional[str], level_id: Optional[str]) -> Di
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        data = {"id": "default", "title": "Default Empty Course", "robot_start": {}, "obstacles": []}
+        data = {"id": "default", "title": "Default Empty Course", "robot_start": {}, "obstacles": [], "people": []}
     data.setdefault("id", "default")
     data.setdefault("title", data["id"])
     data.setdefault("robot_start", {})
     data.setdefault("obstacles", [])
+    data.setdefault("people", [])
     return data
 
 
@@ -137,6 +139,7 @@ def _refresh_course(state: Dict[str, Any]) -> Dict[str, Any]:
         "id": course.get("id", "default"),
         "title": course.get("title", course.get("id", "default")),
         "obstacles": list(course.get("obstacles", [])),
+        "people": list(course.get("people", [])),
     }
     start = course.get("robot_start", {}) if isinstance(course.get("robot_start"), dict) else {}
     robot = state.get("robot", {})
