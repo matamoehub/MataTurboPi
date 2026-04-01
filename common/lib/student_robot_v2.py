@@ -19,7 +19,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -248,6 +248,61 @@ class CameraNamespace(_BackendProxy):
         return backend.tiny_wiggle(seconds=seconds, amplitude=amplitude, speed_s=speed_s)
 
 
+class VisionNamespace(_BackendProxy):
+    def _get_backend(self):
+        return self._owner._vision_backend
+
+    def capture(self, show: bool = True, save_path: Optional[str] = None, title: str = "Camera Capture"):
+        backend = self._ensure()
+        return backend.capture(show=show, save_path=save_path, title=title)
+
+    def show_color(self, color: str, show: bool = True, save_path: Optional[str] = None, min_area: Optional[int] = None):
+        backend = self._ensure()
+        return backend.show_color(color=color, show=show, save_path=save_path, min_area=min_area)
+
+    def find_color(self, color: str, show: bool = True, save_path: Optional[str] = None, min_area: Optional[int] = None):
+        return self.show_color(color=color, show=show, save_path=save_path, min_area=min_area)
+
+    def which_object(self, color: str, show: bool = True, save_path: Optional[str] = None, min_area: Optional[int] = None):
+        backend = self._ensure()
+        return backend.which_object(color=color, show=show, save_path=save_path, min_area=min_area)
+
+    def calibrate_color(
+        self,
+        color: str,
+        box_size: int = 80,
+        hue_pad: int = 12,
+        sat_pad: int = 70,
+        val_pad: int = 70,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        persist: bool = True,
+    ):
+        backend = self._ensure()
+        return backend.calibrate_color(
+            color=color,
+            box_size=box_size,
+            hue_pad=hue_pad,
+            sat_pad=sat_pad,
+            val_pad=val_pad,
+            show=show,
+            save_path=save_path,
+            persist=persist,
+        )
+
+    def set_color_profile(self, color: str, lower_hsv, upper_hsv=None):
+        backend = self._ensure()
+        return backend.set_color_profile(color=color, lower_hsv=lower_hsv, upper_hsv=upper_hsv)
+
+    def get_color_profile(self, color: str):
+        backend = self._ensure()
+        return backend.get_color_profile(color=color)
+
+    def show_profiles(self):
+        backend = self._ensure()
+        return backend.show_profiles()
+
+
 class VoiceNamespace(_BackendProxy):
     def _get_backend(self):
         return self._owner._tts_backend
@@ -387,6 +442,7 @@ class RobotV2:
         self._tts_backend = None
         self._buzzer_backend = None
         self._sonar_backend = None
+        self._vision_backend = None
         self._infrared_backend = None
         self._line_backend = None
         self._tracking_backend = None
@@ -397,6 +453,7 @@ class RobotV2:
         self.move = MoveNamespace(self)
         self.eyes = EyesNamespace(self)
         self.camera = CameraNamespace(self)
+        self.vision = VisionNamespace(self)
         self.voice = VoiceNamespace(self)
         self.buzzer = BuzzerNamespace(self)
         self.sonar = SonarNamespace(self)
@@ -526,6 +583,14 @@ class RobotV2:
                 except Exception as e:
                     self._errors["sonar_lib"] = str(e)
 
+        if self._vision_backend is None:
+            vision_lib = self._import("vision_lib")
+            if vision_lib is not None:
+                try:
+                    self._vision_backend = vision_lib.get_vision()
+                except Exception as e:
+                    self._errors["vision_lib"] = str(e)
+
         if self._infrared_backend is None:
             ir_lib = self._import("infrared_lib")
             if ir_lib is not None:
@@ -641,6 +706,7 @@ class RobotV2:
         print("tts:", "ready" if self._tts_backend is not None else f"unavailable -> {self._errors.get('tts_lib')}")
         print("buzzer:", "ready" if self._buzzer_backend is not None else f"unavailable -> {self._errors.get('buzzer_lib')}")
         print("sonar:", "ready" if self._sonar_backend is not None else f"unavailable -> {self._errors.get('sonar_lib')}")
+        print("vision:", "ready" if self._vision_backend is not None else f"unavailable -> {self._errors.get('vision_lib')}")
         print("infrared:", "ready" if self._infrared_backend is not None else f"unavailable -> {self._errors.get('infrared_lib')}")
         print("line:", "ready" if self._line_backend is not None else f"unavailable -> {self._errors.get('line_follower_lib')}")
         print("tracking:", "ready" if self._tracking_backend is not None else f"unavailable -> {self._errors.get('tracking_lib')}")
@@ -662,6 +728,7 @@ class RobotV2:
             ("tts_lib", self._tts_backend),
             ("buzzer_lib", self._import("buzzer_lib")),
             ("sonar_lib", self._import("sonar_lib")),
+            ("vision_lib", self._import("vision_lib")),
             ("ultrasonic_lib", self._import("ultrasonic_lib")),
             ("infrared_lib", self._import("infrared_lib")),
             ("line_follower_lib", self._import("line_follower_lib")),
