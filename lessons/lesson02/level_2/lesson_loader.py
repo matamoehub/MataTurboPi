@@ -54,6 +54,21 @@ def _find_repo_root(start: Path) -> Path:
     raise FileNotFoundError(f"Could not find lessons root from {start}")
 
 
+def _detect_workspace_login_warning(start: Path) -> Optional[str]:
+    start_str = str(start)
+
+    if not start_str.startswith("/opt/robot/"):
+        return None
+    if "/students/workspaces/" in start_str:
+        return None
+
+    return (
+        "Jupyter does not appear to be running from a student workspace. "
+        "Please log in to the student Jupyter workspace and reopen the lesson notebook there. "
+        f"Current path: {start}"
+    )
+
+
 def _resolve_common_lib(root: Path) -> Path:
     candidates = []
     for env_name in ("MATA_COMMON_LIB_DIR", "LESSON_CACHE_COMMON_LIB_DIR"):
@@ -153,7 +168,14 @@ def setup(
     except Exception:
         pass
 
-    root = _find_repo_root(start)
+    login_warning = _detect_workspace_login_warning(start)
+
+    try:
+        root = _find_repo_root(start)
+    except FileNotFoundError as e:
+        if login_warning:
+            raise FileNotFoundError(f"{e}\n{login_warning}") from e
+        raise
     common_lib = _resolve_common_lib(root)
     lessons_lib = root / "lessons" / "lib"
 
@@ -161,6 +183,9 @@ def setup(
         s = str(path)
         if path.exists() and s not in sys.path:
             sys.path.insert(0, s)
+
+    if login_warning:
+        print(f"[lesson_loader] WARNING: {login_warning}")
 
     if verbose:
         print(f"[lesson_loader] common_lib={common_lib}")
@@ -197,4 +222,4 @@ def setup(
         if verbose and loaded:
             print("Preloaded:", ", ".join(sorted(loaded.keys())))
 
-    return {"bootstrap": info, "modules": loaded, "ros_domain_id": domain}
+    return {"bootstrap": info, "modules": loaded, "ros_domain_id": domain, "login_warning": login_warning}
