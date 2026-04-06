@@ -1,12 +1,12 @@
-# Lesson 18 - MediaPipe Vision V2
+# Lesson 18 - Rock Paper Scissors Vision V2
 
 This lesson mirrors Lesson 8 using the V2 robot object.
 
 Use this lesson to practise:
-- `myRobot.vision.detect_faces()`
-- `myRobot.vision.recognize_hands()`
-- `myRobot.vision.detect_pose()`
-- combining camera results with robot actions
+- detecting a player's hand gesture
+- mapping camera labels to rock / paper / scissors
+- using `myRobot.camera`, `myRobot.eyes`, and `myRobot.voice` as game signals
+- deciding how the robot should respond
 
 ## Main namespaces
 - `myRobot.vision`
@@ -15,12 +15,15 @@ Use this lesson to practise:
 - `myRobot.eyes`
 - `myRobot.buzzer`
 
-## Important teaching note
-This uses face detection and pose/gesture recognition, not named-person identity recognition.
+## Suggested rock-paper-scissors mapping
+- `fist` = rock
+- `open_palm` = paper
+- `peace` = scissors
 
-## Suggested workflow
-1. capture one frame
-2. detect a face
-3. test hand gesture labels
-4. test pose labels
-5. choose a robot response for one condition
+## Suggested game signals
+- blue lights = ready
+- yellow lights = draw or retry
+- green lights = robot win
+- red lights = player win
+- camera shake = countdown motion
+- speech = tell the player what is happening

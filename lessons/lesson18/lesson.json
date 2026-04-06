@@ -1,7 +1,7 @@
 {
   "id": "lesson18",
-  "title": "Lesson 18 \u2014 MediaPipe Vision V2",
-  "description": "Mirror of Lesson 8 using the V2 aggregate robot object API.",
+  "title": "Lesson 18 \u2014 Rock Paper Scissors Vision V2",
+  "description": "Use MediaPipe hand gesture recognition to build a rock-paper-scissors game with the V2 aggregate robot object.",
   "levels": [
     {
       "id": "level_1",

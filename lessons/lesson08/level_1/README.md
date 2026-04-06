@@ -5,7 +5,7 @@ This lesson introduces notebook-friendly MediaPipe vision tools through the V1 l
 Use this lesson to practise:
 - detecting a player's hand gesture
 - mapping camera labels to rock / paper / scissors
-- checking whether a player is ready to play
+- using the camera head, sonar lights, and speech as part of the game
 - deciding how the robot should respond
 
 ## Main libraries
@@ -15,23 +15,23 @@ Use this lesson to practise:
 - `eyes_lib`
 - `buzzer_lib`
 
-## Important teaching note
-`vision_lib` can detect faces and describe what it sees, but it is not identity-based face login. In this lesson, the main goal is hand gesture recognition for a game.
-
 ## Suggested rock-paper-scissors mapping
 - `fist` = rock
 - `open_palm` = paper
 - `peace` = scissors
 
-## Suggested workflow
-1. start with one capture and check the camera framing
-2. test the hand gesture labels
-3. decide how the robot will map those labels to rock, paper, or scissors
-4. make the robot announce the player's move
-5. add robot choice and winner logic
+## Suggested game signals
+- blue lights = ready
+- yellow lights = draw or retry
+- green lights = robot win
+- red lights = player win
+- camera shake = countdown motion
+- speech = tell the player what is happening
 
-## Challenge ideas
-- Say the player's move out loud
-- Make the robot choose its own move
-- Keep score for three rounds
-- Use face detection as a `ready to play` check
+## Suggested workflow
+1. show a ready signal
+2. count down with head shake and speech
+3. capture the hand gesture
+4. map it to rock, paper, or scissors
+5. compare moves
+6. announce the result with lights and speech

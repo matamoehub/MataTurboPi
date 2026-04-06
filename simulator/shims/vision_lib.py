@@ -53,6 +53,19 @@ def _normalize_color_name(color: str) -> str:
     return aliases.get(value, value)
 
 
+def _gesture_to_game_move(gesture: str) -> Optional[str]:
+    value = str(gesture or "").strip().lower()
+    mapping = {
+        "fist": "rock",
+        "open_palm": "paper",
+        "peace": "scissors",
+        "rock": "rock",
+        "paper": "paper",
+        "scissors": "scissors",
+    }
+    return mapping.get(value)
+
+
 def _display_svg(svg_text: str) -> bool:
     try:  # pragma: no cover - notebook-only behavior
         from IPython.display import SVG, display
@@ -390,6 +403,7 @@ class Vision:
                 "index": len(hands) + 1,
                 "handedness": str(person.get("handedness", "right") or "right").title(),
                 "gesture": gesture,
+                "game_move": _gesture_to_game_move(gesture),
                 "fingers": {
                     "thumb": gesture in {"open_palm", "thumbs_up"},
                     "index": gesture in {"open_palm", "peace", "point"},
@@ -405,7 +419,14 @@ class Vision:
         path = _write_svg(svg, save_path=save_path)
         if not displayed:
             print(f"Image saved: {path}")
-        return {"found": bool(hands), "count": len(hands), "hands": hands, "path": path, "simulated": True}
+        return {
+            "found": bool(hands),
+            "count": len(hands),
+            "hands": hands,
+            "game_moves": [hand["game_move"] for hand in hands if hand.get("game_move")],
+            "path": path,
+            "simulated": True,
+        }
 
     def show_hands(self, *args, **kwargs):
         return self.recognize_hands(*args, **kwargs)

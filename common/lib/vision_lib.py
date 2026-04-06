@@ -154,6 +154,19 @@ def _classify_hand_gesture(landmarks, handedness: str) -> Tuple[str, Dict[str, b
     return "unknown", fingers
 
 
+def _gesture_to_game_move(gesture: str) -> Optional[str]:
+    value = str(gesture or "").strip().lower()
+    mapping = {
+        "fist": "rock",
+        "open_palm": "paper",
+        "peace": "scissors",
+        "rock": "rock",
+        "paper": "paper",
+        "scissors": "scissors",
+    }
+    return mapping.get(value)
+
+
 def _classify_pose(landmarks) -> str:
     left_shoulder = landmarks[11]
     right_shoulder = landmarks[12]
@@ -474,6 +487,7 @@ class Vision:
                 "index": idx,
                 "handedness": handedness_label,
                 "gesture": gesture,
+                "game_move": _gesture_to_game_move(gesture),
                 "fingers": fingers,
                 "bbox": {
                     "x": min(xs),
@@ -510,6 +524,7 @@ class Vision:
             "found": bool(hands_found),
             "count": len(hands_found),
             "hands": hands_found,
+            "game_moves": [hand["game_move"] for hand in hands_found if hand.get("game_move")],
             "path": path,
         }
 
