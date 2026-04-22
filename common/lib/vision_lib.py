@@ -28,9 +28,6 @@ from ros_service_client import clear_process_singleton, get_process_singleton, s
 
 
 HSVRange = Tuple[Tuple[int, int, int], Tuple[int, int, int]]
-OPS_WEB_BASE = os.environ.get("OPS_WEB_BASE", "http://127.0.0.1")
-OPS_WEB_SNAPSHOT_PATH = os.environ.get("OPS_WEB_SNAPSHOT_PATH", "/api/vision/snapshot")
-OPS_WEB_TIMEOUT_S = float(os.environ.get("OPS_WEB_TIMEOUT_S", "5.0"))
 OPS_WEB_ENABLED_VALUES = {"1", "true", "yes", "on", "auto"}
 
 
@@ -95,6 +92,21 @@ def _ops_web_enabled() -> bool:
     return value in OPS_WEB_ENABLED_VALUES
 
 
+def _ops_web_base() -> str:
+    return os.environ.get("OPS_WEB_BASE", "http://127.0.0.1")
+
+
+def _ops_web_snapshot_path() -> str:
+    return os.environ.get("OPS_WEB_SNAPSHOT_PATH", "/api/vision/snapshot")
+
+
+def _ops_web_timeout_s() -> float:
+    try:
+        return float(os.environ.get("OPS_WEB_TIMEOUT_S", "5.0"))
+    except Exception:
+        return 5.0
+
+
 def _ops_web_snapshot_frame(
     camera_index: int = 0,
     width: int = 640,
@@ -102,7 +114,7 @@ def _ops_web_snapshot_frame(
     mirror: bool = True,
 ):
     cv2, np = _require_runtime()
-    url = OPS_WEB_BASE.rstrip("/") + OPS_WEB_SNAPSHOT_PATH
+    url = _ops_web_base().rstrip("/") + _ops_web_snapshot_path()
     payload = {
         "camera_index": int(camera_index),
         "width": int(width),
@@ -118,7 +130,7 @@ def _ops_web_snapshot_frame(
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-    with urllib.request.urlopen(req, timeout=OPS_WEB_TIMEOUT_S) as response:
+    with urllib.request.urlopen(req, timeout=_ops_web_timeout_s()) as response:
         body = json.loads(response.read().decode("utf-8"))
     if not body.get("ok"):
         raise RuntimeError(f"robot_ops vision snapshot failed: {body}")
@@ -442,15 +454,6 @@ class Vision:
     def _open_capture(self):
         cv2, _np = _require_runtime()
         cap = cv2.VideoCapture(self.camera_index)
-        if not cap.isOpened() and _ops_web_enabled():
-            try:
-                return _OpsWebFrameCapture(
-                    camera_index=self.camera_index,
-                    width=self.width,
-                    height=self.height,
-                )
-            except Exception:
-                pass
         if not cap.isOpened():
             raise RuntimeError(
                 f"Camera failed to open on index {self.camera_index}. "
@@ -463,14 +466,38 @@ class Vision:
         return cap
 
     def capture_frame(self):
-        cap = self._open_capture()
+        direct_error = None
+        cap = None
         try:
+            cap = self._open_capture()
             ok, frame = cap.read()
+            if ok and frame is not None:
+                return frame
+            direct_error = "Camera opened, but no image frame was captured"
+        except Exception as e:
+            direct_error = str(e)
         finally:
-            cap.release()
-        if not ok or frame is None:
-            raise RuntimeError("Camera opened, but no image frame was captured")
-        return frame
+            try:
+                if cap is not None:
+                    cap.release()
+            except Exception:
+                pass
+
+        if _ops_web_enabled():
+            try:
+                return _ops_web_snapshot_frame(
+                    camera_index=self.camera_index,
+                    width=max(160, int(self.width)),
+                    height=max(120, int(self.height)),
+                    mirror=True,
+                )
+            except Exception as e:
+                raise RuntimeError(
+                    "Camera capture failed through OpenCV and robot_ops web. "
+                    f"OpenCV error: {direct_error}. robot_ops error: {e}"
+                ) from e
+
+        raise RuntimeError(direct_error or "Camera capture failed")
 
     def _capture_rgb_frame(self):
         cv2, _np = _require_runtime()
