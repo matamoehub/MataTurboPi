@@ -152,11 +152,32 @@ def setup_ros_env(default_domain: str = "0") -> dict:
         "CYCLONEDDS_URI": os.environ.get("CYCLONEDDS_URI"),
     }
 
+
+def setup_camera_fallback() -> dict:
+    """
+    Let notebooks that call cv2.VideoCapture(0) use the robot_ops vision API
+    when direct V4L2 capture is unavailable.
+    """
+    if str(os.environ.get("MATA_BACKEND", "")).strip().lower() == "sim":
+        return {"OPS_WEB_CAMERA_FALLBACK": False}
+    try:
+        import vision_lib
+
+        installed = bool(vision_lib.install_opencv_capture_fallback())
+        return {"OPS_WEB_CAMERA_FALLBACK": installed}
+    except Exception as e:
+        return {
+            "OPS_WEB_CAMERA_FALLBACK": False,
+            "OPS_WEB_CAMERA_FALLBACK_ERROR": str(e),
+        }
+
+
 def bootstrap(default_domain: str = "0", verbose: bool = True) -> dict:
     paths = setup_paths()
     env = setup_ros_env(default_domain=default_domain)
+    camera = setup_camera_fallback()
 
-    info = {**paths, **env}
+    info = {**paths, **env, **camera}
     if verbose:
         print("START:", info["START"])
         print("Repo root:", info["ROOT"])
@@ -168,4 +189,5 @@ def bootstrap(default_domain: str = "0", verbose: bool = True) -> dict:
         print("ROS_DOMAIN_ID =", info["ROS_DOMAIN_ID"])
         print("RMW_IMPLEMENTATION =", info["RMW_IMPLEMENTATION"])
         print("CYCLONEDDS_URI =", info["CYCLONEDDS_URI"])
+        print("OPS_WEB_CAMERA_FALLBACK =", info.get("OPS_WEB_CAMERA_FALLBACK"))
     return info
