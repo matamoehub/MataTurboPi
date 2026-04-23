@@ -1,32 +1,55 @@
-# Lesson 13 — Find Colour Balls With V2
+# Lesson 13 - Random Colour Ball Push
 
 ## Goal
-Use the V2 robot object to help the robot:
-1. choose a target colour
-2. find the correct ball using vision
-3. decide how to move
-4. line up and push the ball
+Use the V2 robot object to push a randomly chosen ball.
 
-This mirrors Lesson 3, but movement and reactions use the V2 namespaces.
+This lesson comes after basic movement and the distance sensor. Students already know how to make the robot move, and they have used a sensor to make a decision.
 
-## How this lesson works
-- you work in a notebook
-- you reuse the V2 movement API
-- the robot does not move to search unless your logic says it should
-- the camera and tracking services help decide movement
+Now the camera becomes the sensor. Instead of asking "how far away is the object?", the robot asks "is the chosen ball left, right, centred, or lost?"
 
-## Required flow
-### Step 0 — Calibrate colours
-Before running the notebook, make sure colour calibration is correct.
+This lesson is for students who are still learning Python. Keep the process simple:
 
-### Step 1 — Choose a target colour
-Pick one colour and store it.
+1. Calibrate the ball colours.
+2. Pick a random target ball.
+3. Ask the camera if the ball is left, right, centred, or lost.
+4. Write the movement code for each decision.
+5. Tweak the movement time until the robot can push any random ball.
 
-### Step 2 — Camera scan path
-Design how the camera or tracking service should scan.
+## Key commands
 
-### Step 3 — Vision output
-Use the tracking information to decide left, right, or forward movement.
+Set a colour profile:
 
-### Step 4 — Push to goal
-Use `myRobot.move` for the push stage.
+```python
+myRobot.vision.set_color_profile(
+    "green",
+    lower_hsv=(47, 98, 98),
+    upper_hsv=(71, 238, 238),
+)
+```
+
+Pick a target:
+
+```python
+TARGET_COLOUR = pick_random_ball()
+```
+
+Ask the camera where the target is:
+
+```python
+decision = myRobot.vision.target_position(TARGET_COLOUR, deadzone=50, show=True)
+```
+
+Move based on the decision:
+
+```python
+if decision["direction"] == "left":
+    myRobot.move.left(seconds=0.15, speed=80)
+
+elif decision["direction"] == "right":
+    myRobot.move.right(seconds=0.15, speed=80)
+
+elif decision["direction"] == "center":
+    myRobot.move.forward(seconds=0.6, speed=100)
+```
+
+The main student challenge is to tune the movement times so the robot lines up without overshooting.

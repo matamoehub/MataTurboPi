@@ -12,7 +12,7 @@ singleton-safe library that can:
 - display annotated images inline in Jupyter
 - calibrate colour HSV ranges from the notebook
 """
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 import copy
 import base64
@@ -111,7 +111,7 @@ def _ops_web_snapshot_frame(
     camera_index: int = 0,
     width: int = 640,
     height: int = 480,
-    mirror: bool = True,
+    mirror: bool = False,
 ):
     cv2, np = _require_runtime()
     url = _ops_web_base().rstrip("/") + _ops_web_snapshot_path()
@@ -203,7 +203,7 @@ class _OpsWebVideoCapture:
                     camera_index=self._camera_index(),
                     width=int(self._width),
                     height=int(self._height),
-                    mirror=True,
+                    mirror=False,
                 )
                 return True, frame
             except Exception:
@@ -265,7 +265,7 @@ class _OpsWebFrameCapture:
                 camera_index=self.camera_index,
                 width=self.width,
                 height=self.height,
-                mirror=True,
+                mirror=False,
             )
             return True, frame
         except Exception:
@@ -489,7 +489,7 @@ class Vision:
                     camera_index=self.camera_index,
                     width=max(160, int(self.width)),
                     height=max(120, int(self.height)),
-                    mirror=True,
+                    mirror=False,
                 )
             except Exception as e:
                 raise RuntimeError(
@@ -560,6 +560,7 @@ class Vision:
         threshold = int(self.min_area if min_area is None else min_area)
         objects = []
         annotated = frame.copy()
+        frame_h, frame_w = frame.shape[:2]
 
         for contour in contours:
             area = float(cv2.contourArea(contour))
@@ -615,6 +616,54 @@ class Vision:
             "objects": objects,
             "path": path,
             "ranges": ranges,
+            "width": int(frame_w),
+            "height": int(frame_h),
+            "center_x": int(frame_w // 2),
+        }
+
+    def target_position(
+        self,
+        color: str,
+        target_x: Optional[int] = None,
+        deadzone: int = 50,
+        show: bool = True,
+        min_area: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        result = self.find_color_objects(color=color, show=show, min_area=min_area)
+        objects = result["objects"]
+        centre_x = int(result["center_x"] if target_x is None else target_x)
+        threshold = abs(int(deadzone))
+
+        if not objects:
+            return {
+                "color": result["color"],
+                "found": False,
+                "direction": "lost",
+                "error": None,
+                "target_x": centre_x,
+                "deadzone": threshold,
+                "object": None,
+                "result": result,
+            }
+
+        target = max(objects, key=lambda item: item["area"])
+        error = int(target["cx"] - centre_x)
+        if abs(error) <= threshold:
+            direction = "center"
+        elif error < 0:
+            direction = "left"
+        else:
+            direction = "right"
+
+        return {
+            "color": result["color"],
+            "found": True,
+            "direction": direction,
+            "error": error,
+            "target_x": centre_x,
+            "deadzone": threshold,
+            "object": target,
+            "result": result,
         }
 
     def detect_faces(

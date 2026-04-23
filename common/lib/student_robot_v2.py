@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.3.0"
+__version__ = "2.4.0"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -268,6 +268,63 @@ class VisionNamespace(_BackendProxy):
     def which_object(self, color: str, show: bool = True, save_path: Optional[str] = None, min_area: Optional[int] = None):
         backend = self._ensure()
         return backend.which_object(color=color, show=show, save_path=save_path, min_area=min_area)
+
+    def target_position(
+        self,
+        color: str,
+        target_x: Optional[int] = None,
+        deadzone: int = 50,
+        show: bool = True,
+        min_area: Optional[int] = None,
+    ):
+        backend = self._ensure()
+        return backend.target_position(
+            color=color,
+            target_x=target_x,
+            deadzone=deadzone,
+            show=show,
+            min_area=min_area,
+        )
+
+    def move_towards_color(
+        self,
+        color: str,
+        sideways_seconds: float = 0.15,
+        speed: Optional[float] = 80,
+        deadzone: int = 50,
+        target_x: Optional[int] = None,
+        show: bool = False,
+        min_area: Optional[int] = None,
+        push_seconds: Optional[float] = None,
+        push_speed: Optional[float] = None,
+    ):
+        decision = self.target_position(
+            color=color,
+            target_x=target_x,
+            deadzone=deadzone,
+            show=show,
+            min_area=min_area,
+        )
+        direction = decision["direction"]
+        decision["moved"] = None
+
+        if direction == "left":
+            self._owner.move.left(seconds=sideways_seconds, speed=speed)
+            self._owner.move.stop()
+            decision["moved"] = "left"
+        elif direction == "right":
+            self._owner.move.right(seconds=sideways_seconds, speed=speed)
+            self._owner.move.stop()
+            decision["moved"] = "right"
+        elif direction == "center" and push_seconds is not None:
+            self._owner.move.forward(
+                seconds=float(push_seconds),
+                speed=speed if push_speed is None else push_speed,
+            )
+            self._owner.move.stop()
+            decision["moved"] = "forward"
+
+        return decision
 
     def calibrate_color(
         self,
