@@ -33,6 +33,11 @@ VOICE_MAP = {
 
 DEFAULT_VOICE = "ryan"
 PIPER_VOICE_ENV = "PIPER_VOICE"
+VOLUME_CONTROLS = tuple(
+    name.strip()
+    for name in os.environ.get("ROBOT_VOLUME_CONTROLS", "Master,PCM,Speaker").split(",")
+    if name.strip()
+)
 
 
 def available_voices(installed_only: bool = True) -> list[str]:
@@ -97,6 +102,83 @@ def _require_aplay():
         raise RuntimeError(
             "aplay not found. Install: sudo apt update && sudo apt install -y alsa-utils"
         )
+
+
+def _require_amixer():
+    if not shutil.which("amixer"):
+        raise RuntimeError(
+            "amixer not found. Install: sudo apt update && sudo apt install -y alsa-utils"
+        )
+
+
+def _clamp_volume_percent(percent: int) -> int:
+    return max(0, min(100, int(percent)))
+
+
+def _amixer_control_exists(control: str) -> bool:
+    proc = subprocess.run(
+        ["amixer", "sget", str(control)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        cwd=_safe_workdir(),
+        check=False,
+    )
+    return proc.returncode == 0
+
+
+def _pick_volume_control(control: Optional[str] = None) -> str:
+    _require_amixer()
+    if control:
+        return str(control)
+    for candidate in VOLUME_CONTROLS:
+        if _amixer_control_exists(candidate):
+            return candidate
+    raise RuntimeError(
+        "No supported ALSA volume control found. "
+        f"Tried: {', '.join(VOLUME_CONTROLS)}"
+    )
+
+
+def set_volume(percent: int, control: Optional[str] = None) -> dict:
+    """
+    Set robot audio output volume using ALSA.
+    """
+    value = _clamp_volume_percent(percent)
+    chosen = _pick_volume_control(control)
+    proc = subprocess.run(
+        ["amixer", "set", chosen, f"{value}%"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=_safe_workdir(),
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or proc.stdout or "amixer volume set failed").strip())
+    return {"ok": True, "control": chosen, "volume": value}
+
+
+def get_volume(control: Optional[str] = None) -> dict:
+    """
+    Return the current ALSA volume percentage for the chosen control.
+    """
+    chosen = _pick_volume_control(control)
+    proc = subprocess.run(
+        ["amixer", "sget", chosen],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=_safe_workdir(),
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or proc.stdout or "amixer volume read failed").strip())
+
+    import re
+
+    matches = re.findall(r"\[(\d{1,3})%\]", proc.stdout or "")
+    volume = int(matches[-1]) if matches else None
+    return {"ok": True, "control": chosen, "volume": volume, "raw": proc.stdout}
 
 
 def synth_to_wav(

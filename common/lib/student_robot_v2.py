@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import builtins
 import importlib
+import importlib.util
+from pathlib import Path
 import threading
 from typing import Any, Optional
 
@@ -410,6 +412,20 @@ class VoiceNamespace(_BackendProxy):
     def show_voices(self):
         return self.voices()
 
+    def set_volume(self, percent: int, control: Optional[str] = None):
+        backend = self._ensure()
+        fn = getattr(backend, "set_volume", None)
+        if not callable(fn):
+            raise AttributeError("tts_lib.set_volume is not available")
+        return fn(percent, control=control)
+
+    def get_volume(self, control: Optional[str] = None):
+        backend = self._ensure()
+        fn = getattr(backend, "get_volume", None)
+        if not callable(fn):
+            raise AttributeError("tts_lib.get_volume is not available")
+        return fn(control=control)
+
     def select(self, voice: Optional[str] = None, number: Optional[int] = None):
         return self._owner.anim.select_voice(voice=voice, number=number)
 
@@ -571,6 +587,35 @@ class RobotV2:
             self._errors[module_name] = str(e)
             return None
 
+    def _import_student_animation_lib(self):
+        mod = self._import("student_animation_lib")
+        if mod is not None and callable(getattr(mod, "get_animation_lib", None)):
+            return mod
+
+        tried = []
+        for base in [Path(__file__).resolve().parents[2], Path.cwd()]:
+            candidate = base / "lessons" / "lib" / "student_animation_lib.py"
+            tried.append(str(candidate))
+            if not candidate.exists():
+                continue
+            try:
+                spec = importlib.util.spec_from_file_location("_mata_student_animation_lib", str(candidate))
+                if spec is None or spec.loader is None:
+                    continue
+                loaded = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(loaded)
+                if callable(getattr(loaded, "get_animation_lib", None)):
+                    return loaded
+            except Exception as e:
+                self._errors["student_animation_lib"] = str(e)
+
+        source = getattr(mod, "__file__", "unknown file") if mod is not None else "not imported"
+        self._errors["student_animation_lib"] = (
+            "student_animation_lib missing get_animation_lib; "
+            f"imported {source}; tried {tried}"
+        )
+        return mod
+
     def _move_aliases(self, move_name: str):
         aliases = {
             "forward": ("forward", "move_forward"),
@@ -621,7 +666,7 @@ class RobotV2:
     def _refresh_animation_backend(self):
         if self._animation_backend is not None:
             try:
-                self._animation_backend = importlib.import_module("student_animation_lib").get_animation_lib(
+                self._animation_backend = self._import_student_animation_lib().get_animation_lib(
                     robot=self._move_backend,
                     eyes=self._eyes_backend,
                     camera=self._camera_backend,
@@ -726,7 +771,7 @@ class RobotV2:
                     self._errors["qrcode_lib"] = str(e)
 
         if self._animation_backend is None:
-            anim_lib = self._import("student_animation_lib")
+            anim_lib = self._import_student_animation_lib()
             if anim_lib is not None:
                 try:
                     self._animation_backend = anim_lib.get_animation_lib(
