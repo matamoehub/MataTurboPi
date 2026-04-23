@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.4.0"
+__version__ = "2.4.1"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -876,17 +876,40 @@ class RobotV2:
         raise AttributeError("horn is not available")
 
     def stop(self):
+        stopped = False
         if self.anim is not None:
-            self.anim.stop()
-            return
+            try:
+                self.anim.stop()
+                stopped = True
+            except Exception as e:
+                self._errors["student_animation_lib.stop"] = str(e)
+
         for backend in self._move_backends:
             if backend is None:
                 continue
-            fn = getattr(backend, "stop", None)
+            for name in ("stop", "emergency_stop"):
+                fn = getattr(backend, name, None)
+                if callable(fn):
+                    try:
+                        fn()
+                        stopped = True
+                    except Exception as e:
+                        self._errors[f"{type(backend).__name__}.{name}"] = str(e)
+
+        controller = self._import("robot_controller_api")
+        if controller is not None:
+            fn = getattr(controller, "all_stop", None)
             if callable(fn):
-                fn()
-                return
-        raise AttributeError("stop is not available")
+                try:
+                    fn()
+                    stopped = True
+                except Exception as e:
+                    self._errors["robot_controller_api.all_stop"] = str(e)
+
+        if not stopped:
+            raise AttributeError("stop is not available")
+
+        return None
 
     def status(self):
         self._ensure_backends()
