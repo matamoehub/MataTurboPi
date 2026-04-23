@@ -223,7 +223,7 @@ def setup(
     common_lib = _resolve_common_lib(root)
     lessons_lib = root / "lessons" / "lib"
 
-    for path in (common_lib, lessons_lib):
+    for path in (lessons_lib, common_lib):
         s = str(path)
         if path.exists() and s not in sys.path:
             sys.path.insert(0, s)
