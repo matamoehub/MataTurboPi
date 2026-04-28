@@ -75,10 +75,23 @@ def _detect_workspace_login_warning(start: Path) -> Optional[str]:
         return None
 
     return (
+        "Student workspace login required. "
         "Jupyter does not appear to be running from a student workspace. "
         "Please log in to the student Jupyter workspace and reopen the lesson notebook there. "
         f"Current path: {start}"
     )
+
+
+def _raise_workspace_error(start: Path, detail: str, login_warning: Optional[str]) -> None:
+    message = str(detail).strip()
+    if login_warning:
+        raise RuntimeError(
+            "Student workspace login required. "
+            "Please log in to the student Jupyter workspace and reopen this lesson notebook.\n"
+            f"Current path: {start}\n"
+            f"Technical detail: {message}"
+        )
+    raise RuntimeError(message)
 
 
 def _resolve_common_lib(root: Path) -> Path:
@@ -238,23 +251,29 @@ def setup(
         print(f"[lesson_loader] lessons_lib={lessons_lib}")
 
     bootstrap_path = common_lib / "bootstrap.py"
-    spec = importlib.util.spec_from_file_location("lesson_bootstrap", str(bootstrap_path))
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not load bootstrap from {bootstrap_path}")
-    bootstrap = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(bootstrap)
+    try:
+        spec = importlib.util.spec_from_file_location("lesson_bootstrap", str(bootstrap_path))
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Could not load bootstrap from {bootstrap_path}")
+        bootstrap = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(bootstrap)
+    except Exception as e:
+        _raise_workspace_error(start, f"bootstrap could not load: {e}", login_warning)
 
     domain = _resolve_domain(default_domain)
     os.environ["ROS_DOMAIN_ID"] = domain
 
-    if hasattr(bootstrap, "init"):
-        info = bootstrap.init(default_domain=domain, verbose=verbose)
-    elif hasattr(bootstrap, "bootstrap"):
-        info = bootstrap.bootstrap(default_domain=domain, verbose=verbose)
-    else:
-        raise AttributeError(
-            f"bootstrap module missing both init() and bootstrap(): {bootstrap_path}"
-        )
+    try:
+        if hasattr(bootstrap, "init"):
+            info = bootstrap.init(default_domain=domain, verbose=verbose)
+        elif hasattr(bootstrap, "bootstrap"):
+            info = bootstrap.bootstrap(default_domain=domain, verbose=verbose)
+        else:
+            raise AttributeError(
+                f"bootstrap module missing both init() and bootstrap(): {bootstrap_path}"
+            )
+    except Exception as e:
+        _raise_workspace_error(start, f"bootstrap could not initialise: {e}", login_warning)
 
     loaded: Dict[str, object] = {}
     if preload_common:

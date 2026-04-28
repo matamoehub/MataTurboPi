@@ -64,10 +64,23 @@ def _detect_workspace_login_warning(start: Path) -> Optional[str]:
         return None
 
     return (
+        "Student workspace login required. "
         "Jupyter does not appear to be running from a student workspace. "
         "Please log in to the student Jupyter workspace and reopen the lesson notebook there. "
         f"Current path: {start}"
     )
+
+
+def _raise_workspace_error(start: Path, detail: str, login_warning: Optional[str]) -> None:
+    message = str(detail).strip()
+    if login_warning:
+        raise RuntimeError(
+            "Student workspace login required. "
+            "Please log in to the student Jupyter workspace and reopen this lesson notebook.\n"
+            f"Current path: {start}\n"
+            f"Technical detail: {message}"
+        )
+    raise RuntimeError(message)
 
 
 def _resolve_common_lib(root: Path) -> Path:
