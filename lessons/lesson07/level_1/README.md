@@ -17,6 +17,8 @@ Students should test the robot's capabilities first, then build a stronger auton
 - `vision_lib`
 - `sonar_lib` / `ultrasonic_lib`
 
+In this lesson, `camera_lib` is for moving the camera head and `vision_lib` is for OpenCV camera images and colour detection.
+
 ## What students should practise
 Students should show they can use:
 - variables
@@ -36,21 +38,31 @@ Instead:
 3. plan the logic using pseudocode
 4. let students build and refine their own solution
 
-## Vision workflow
-Use the camera and colour tools as a test-and-decide sensor, not as a finished solution.
+## Camera and OpenCV workflow
+Use the camera and OpenCV colour tools as a test-and-decide sensor, not as a finished solution.
 
 Suggested workflow:
 1. use `vision_lib.get_vision().capture()` to check that the cups are visible
-2. point the camera so the target cup is near the middle of the image
-3. run `calibrate_color('red')` on the target cup
+2. use `cam.center_all()`, `cam.glance_left()`, or `cam.glance_right()` to aim the camera
+3. run `calibrate_color('red')` or set a profile with `set_color_profile(...)`
 4. run `show_color('red')` to check the highlighted result
-5. run `which_object('red')` to ask which visible cup is red
+5. run `target_position('red', deadzone=50)` to ask if the target is left, right, centre, or lost
 6. save that result in a variable and decide what the robot should do next
 
 If the result is poor:
 - move a little closer
 - center the camera again
 - recalibrate and test again
+
+Useful OpenCV helper calls:
+
+```python
+vision = vision_lib.get_vision()
+vision.capture()
+vision.show_color("red")
+decision = vision.target_position("red", deadzone=50, show=True)
+print(decision["direction"])
+```
 
 ## Suggested design flow
 A strong advanced project might follow this structure:
