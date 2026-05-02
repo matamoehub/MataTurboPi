@@ -32,6 +32,7 @@ VOICE_MAP = {
 }
 
 DEFAULT_VOICE = "ryan"
+PIPER_BIN_ENV = "PIPER_BIN"
 PIPER_VOICE_ENV = "PIPER_VOICE"
 VOLUME_CONTROLS = tuple(
     name.strip()
@@ -82,6 +83,33 @@ def _safe_workdir() -> str:
         if cand and os.path.isdir(cand):
             return cand
     return "/tmp"
+
+
+
+
+def _resolve_piper_bin() -> str:
+    configured = (os.environ.get(PIPER_BIN_ENV) or "").strip()
+    candidates = []
+    if configured:
+        candidates.append(configured)
+    discovered = shutil.which("piper")
+    if discovered:
+        candidates.append(discovered)
+    candidates.append("/opt/robot/piper/piper")
+
+    seen = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+
+    tried = ", ".join(candidates) if candidates else "(none)"
+    raise FileNotFoundError(
+        "Piper binary not found. Tried: " + tried +
+        ". Set PIPER_BIN to the correct executable path."
+    )
 
 
 def _voice_paths(name: Optional[str]):
@@ -192,10 +220,11 @@ def synth_to_wav(
     Synthesize speech to a wav file using piper.
     """
     model, config = _voice_paths(voice)
+    piper_bin = _resolve_piper_bin()
 
     proc = subprocess.run(
         [
-            "piper",
+            piper_bin,
             "-m",
             model,
             "-c",
