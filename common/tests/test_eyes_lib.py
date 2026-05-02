@@ -1,5 +1,5 @@
 import importlib.util
-import os
+import json
 import sys
 import types
 from pathlib import Path
@@ -83,26 +83,41 @@ def _install_ros_stubs():
     sys.modules["ros_robot_controller_msgs.msg"] = msg_mod
 
 
-def _install_board_stub():
-    fast_sdk_mod = types.ModuleType("fast_sdk")
-    board_mod = types.ModuleType("fast_sdk.board_sdk")
+def _install_urlopen_stub(ok=True, calls=None):
+    import urllib.request
 
-    class _BoardSDK:
-        def __init__(self):
-            self.calls = []
+    class _Resp:
+        def __init__(self, payload):
+            self._payload = payload
 
-        def set_rgb(self, payload):
-            self.calls.append(payload)
+        def read(self):
+            return json.dumps(self._payload).encode("utf-8")
 
-    board_mod.BoardSDK = _BoardSDK
-    sys.modules["fast_sdk"] = fast_sdk_mod
-    sys.modules["fast_sdk.board_sdk"] = board_mod
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    def _urlopen(req, timeout=0):
+        method = getattr(req, "method", None) or req.get_method()
+        full_url = req.full_url
+        body = None
+        if getattr(req, "data", None):
+            body = json.loads(req.data.decode("utf-8"))
+        if calls is not None:
+            calls.append((method, full_url, body, timeout))
+        if not ok:
+            raise urllib.error.URLError("controller down")
+        if full_url.endswith("/health"):
+            return _Resp({"ok": True})
+        return _Resp({"ok": True})
+
+    urllib.request.urlopen = _urlopen
 
 
 def _clear_optional_modules():
     for name in [
-        "fast_sdk",
-        "fast_sdk.board_sdk",
         "rclpy",
         "rclpy.node",
         "rclpy.executors",
@@ -112,35 +127,42 @@ def _clear_optional_modules():
         sys.modules.pop(name, None)
 
 
-def _load_eyes_lib(monkeypatch, backend="auto", board_available=True):
+def _load_eyes_lib(monkeypatch, backend="auto", controller_ok=True):
     _clear_optional_modules()
     _install_ros_stubs()
-    if board_available:
-        _install_board_stub()
     monkeypatch.setenv("EYES_BACKEND", backend)
     monkeypatch.setenv("EYES_FLUSH_SPIN_S", "0")
     monkeypatch.setenv("EYES_FLUSH_PAUSE_S", "0")
+    monkeypatch.setenv("EYES_CONTROLLER_URL", "http://127.0.0.1:8766")
+    calls = []
+    _install_urlopen_stub(ok=controller_ok, calls=calls)
 
     path = Path(__file__).resolve().parents[1] / "lib" / "eyes_lib.py"
-    module_name = f"eyes_lib_for_test_{backend}_{'board' if board_available else 'ros'}"
+    module_name = f"eyes_lib_for_test_{backend}_{'controller' if controller_ok else 'ros'}"
     spec = importlib.util.spec_from_file_location(module_name, str(path))
     module = importlib.util.module_from_spec(spec)
     assert spec is not None and spec.loader is not None
     spec.loader.exec_module(module)
-    return module
+    return module, calls
 
 
-def test_prefers_board_sdk_when_available(monkeypatch):
-    eyes_lib = _load_eyes_lib(monkeypatch, backend="auto", board_available=True)
+def test_prefers_local_controller_when_available(monkeypatch):
+    eyes_lib, calls = _load_eyes_lib(monkeypatch, backend="auto", controller_ok=True)
     eyes = eyes_lib.get_eyes(force_reset=True)
 
-    assert eyes.backend == "board"
+    assert eyes.backend == "controller"
     eyes.set_both(1, 2, 3)
-    assert eyes._board.calls[-1] == [(0, 1, 2, 3), (1, 1, 2, 3)]
+    assert calls[0][0] == "GET"
+    assert calls[-1][0] == "POST"
+    assert calls[-1][1].endswith("/set")
+    assert calls[-1][2]["states"] == [
+        {"index": 0, "red": 1, "green": 2, "blue": 3},
+        {"index": 1, "red": 1, "green": 2, "blue": 3},
+    ]
 
 
-def test_falls_back_to_ros_when_board_unavailable(monkeypatch):
-    eyes_lib = _load_eyes_lib(monkeypatch, backend="auto", board_available=False)
+def test_falls_back_to_ros_when_controller_unavailable(monkeypatch):
+    eyes_lib, _calls = _load_eyes_lib(monkeypatch, backend="auto", controller_ok=False)
     eyes = eyes_lib.get_eyes(force_reset=True)
 
     assert eyes.backend == "ros"

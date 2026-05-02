@@ -1,16 +1,21 @@
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 
 # eyes_lib.py
 import atexit
+import json
 import os
 import threading
 import time
+import urllib.error
+import urllib.request
 from typing import List, Optional, Tuple
 
 from ros_robot_controller_msgs.msg import RGBState, RGBStates
 
 ENV_TOPIC = os.getenv("EYES_TOPIC", "").strip()
 EYES_BACKEND = os.getenv("EYES_BACKEND", "auto").strip().lower() or "auto"
+EYES_CONTROLLER_URL = (os.getenv("EYES_CONTROLLER_URL", "").strip() or "http://127.0.0.1:8766").rstrip("/")
+EYES_CONTROLLER_TIMEOUT_S = float(os.getenv("EYES_CONTROLLER_TIMEOUT_S", "0.35"))
 
 CANDIDATE_TOPICS = [
     "/sonar_controller/set_rgb",
@@ -42,29 +47,38 @@ def _rclpy_init_once() -> None:
         rclpy.init(args=None)
 
 
-def _load_board_backend():
-    if EYES_BACKEND == "ros":
-        return None, "ros_forced"
+def _controller_health(url: str) -> tuple[bool, str]:
     try:
-        from fast_sdk.board_sdk import BoardSDK
+        req = urllib.request.Request(f"{url}/health", method="GET")
+        with urllib.request.urlopen(req, timeout=EYES_CONTROLLER_TIMEOUT_S) as resp:
+            payload = json.loads(resp.read().decode("utf-8") or "{}")
+        if payload.get("ok"):
+            return True, f"controller:{url}"
+        return False, f"controller_not_ok:{payload}"
+    except Exception as exc:
+        return False, f"controller_unavailable:{exc}"
 
-        board = BoardSDK()
-        if not hasattr(board, "set_rgb"):
-            return None, "board_missing_set_rgb"
-        return board, "board_sdk"
-    except Exception as e:
-        if EYES_BACKEND == "board":
-            raise RuntimeError(f"board_backend_unavailable:{e}") from e
-        return None, f"board_unavailable:{e}"
+
+def _controller_post(url: str, payload: dict) -> None:
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"{url}/set",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=max(0.35, EYES_CONTROLLER_TIMEOUT_S)) as resp:
+        body = json.loads(resp.read().decode("utf-8") or "{}")
+    if not body.get("ok"):
+        raise RuntimeError(f"controller_rejected:{body}")
 
 
 class Eyes:
-    """
-    Simple RGB eye helper.
+    """Simple RGB eye helper.
 
     Preferred path:
-    - Drive the LEDs directly through BoardSDK.set_rgb(...), which avoids
-      per-notebook ROS node flakiness in student kernels.
+    - Send commands to the local eyes_controller service, which keeps robot eye
+      control out of the student kernel and uses one supervised ROS publisher.
 
     Fallback path:
     - Publish ros_robot_controller_msgs/RGBStates to the sonar/controller RGB
@@ -81,17 +95,25 @@ class Eyes:
         self.right_i = int(indices[1])
         self.topic = topic or ENV_TOPIC or CANDIDATE_TOPICS[0]
         self.backend_reason = ""
-        self._board = None
+        self.controller_url = EYES_CONTROLLER_URL
         self._ros_node = None
         self._exec = None
         self.pub = None
 
-        self._board, self.backend_reason = _load_board_backend()
-        if self._board is None:
-            self._init_ros_backend(topic=topic, node_name=node_name)
-            self.backend = "ros"
+        self.backend = "ros"
+        if EYES_BACKEND != "ros":
+            ok, reason = _controller_health(self.controller_url)
+            if ok:
+                self.backend = "controller"
+                self.backend_reason = reason
+            elif EYES_BACKEND == "controller":
+                raise RuntimeError(reason)
+            else:
+                self.backend_reason = reason
+                self._init_ros_backend(topic=topic, node_name=node_name)
         else:
-            self.backend = "board"
+            self.backend_reason = "ros_forced"
+            self._init_ros_backend(topic=topic, node_name=node_name)
 
         self._blink_thread: Optional[threading.Thread] = None
         self._blink_stop = threading.Event()
@@ -102,7 +124,6 @@ class Eyes:
             f" reason={self.backend_reason} topic={self.topic} indices={indices}"
         )
 
-    # ---------- backend setup ----------
     def _init_ros_backend(self, topic: Optional[str], node_name: str) -> None:
         from rclpy.executors import SingleThreadedExecutor
         from rclpy.node import Node
@@ -120,7 +141,6 @@ class Eyes:
         self._ros_node = node
         self._exec = executor
 
-    # ---------- ROS helpers ----------
     def _auto_topic(self, node) -> str:
         try:
             topics = {name for (name, _types) in node.get_topic_names_and_types()}
@@ -143,8 +163,12 @@ class Eyes:
     def diagnose(self) -> None:
         print("Backend:", self.backend)
         print("Backend detail:", self.backend_reason)
+        if self.backend == "controller":
+            print("Controller URL:", self.controller_url)
+            print("Topic in use:", self.topic)
+            return
         print("Topic in use:", self.topic)
-        if self.backend != "ros" or self._ros_node is None:
+        if self._ros_node is None:
             return
         topics = self._ros_node.get_topic_names_and_types()
         names = sorted([t[0] for t in topics])
@@ -153,14 +177,22 @@ class Eyes:
             if "rgb" in n.lower() or "led" in n.lower() or "sonar" in n.lower():
                 print(" -", n)
 
-    # ---------- Publish API ----------
     def _publish_states(self, states: List[RGBState]) -> None:
-        if self._board is not None:
-            payload = [
-                (int(s.index), int(s.red), int(s.green), int(s.blue))
-                for s in states
-            ]
-            self._board.set_rgb(payload)
+        if self.backend == "controller":
+            _controller_post(
+                self.controller_url,
+                {
+                    "states": [
+                        {
+                            "index": int(s.index),
+                            "red": int(s.red),
+                            "green": int(s.green),
+                            "blue": int(s.blue),
+                        }
+                        for s in states
+                    ]
+                },
+            )
             return
 
         msg = RGBStates()
@@ -191,7 +223,6 @@ class Eyes:
         except Exception:
             pass
 
-    # ---------- Effects ----------
     def blink(self, color=(255, 255, 255), period_s=0.25, duration_s=1.0) -> None:
         end = time.time() + float(duration_s)
         on = True
@@ -232,7 +263,6 @@ class Eyes:
         self._ros_node = None
         self._exec = None
         self.pub = None
-        self._board = None
 
 
 _EYES_SINGLETON: Optional[Eyes] = None
@@ -255,9 +285,8 @@ def get_eyes(
     indices: Tuple[int, int] = DEFAULT_INDICES,
     force_reset: bool = False,
 ) -> Eyes:
-    """
-    Singleton eyes instance.
-    Use force_reset=True to recreate the backend after a hardware or ROS failure.
+    """Singleton eyes instance.
+    Use force_reset=True to recreate the backend after a controller or ROS failure.
     """
     global _EYES_SINGLETON
     if force_reset:
