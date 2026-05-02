@@ -19,6 +19,7 @@ import hashlib
 import tempfile
 import wave
 import contextlib
+import re
 from typing import Optional
 
 # Allow override so it works no matter which user runs Jupyter/services
@@ -41,6 +42,16 @@ VOLUME_CONTROLS = tuple(
 )
 DEFAULT_AUDIO_VOLUME = max(0, min(100, int(os.environ.get("ROBOT_DEFAULT_AUDIO_VOLUME", "40"))))
 _DEFAULT_VOLUME_READY = False
+PREFERRED_VOLUME_CONTROLS = (
+    "Master",
+    "PCM",
+    "Speaker",
+    "Headphone",
+    "Playback",
+    "Line Out",
+    "Digital",
+    "Audio",
+)
 
 
 def available_voices(installed_only: bool = True) -> list[str]:
@@ -156,16 +167,73 @@ def _amixer_control_exists(control: str) -> bool:
     return proc.returncode == 0
 
 
+def _list_amixer_controls() -> list[str]:
+    proc = subprocess.run(
+        ["amixer", "scontrols"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=_safe_workdir(),
+        check=False,
+    )
+    if proc.returncode != 0:
+        return []
+    found = re.findall(r"Simple mixer control '([^']+)'", proc.stdout or "")
+    seen = set()
+    ordered = []
+    for name in found:
+        if name not in seen:
+            seen.add(name)
+            ordered.append(name)
+    return ordered
+
+
+def _amixer_control_has_playback_volume(control: str) -> bool:
+    proc = subprocess.run(
+        ["amixer", "sget", str(control)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        cwd=_safe_workdir(),
+        check=False,
+    )
+    if proc.returncode != 0:
+        return False
+    output = proc.stdout or ""
+    return bool(re.search(r"\[\d{1,3}%\]", output))
+
+
 def _pick_volume_control(control: Optional[str] = None) -> str:
     _require_amixer()
     if control:
         return str(control)
-    for candidate in VOLUME_CONTROLS:
-        if _amixer_control_exists(candidate):
+    configured = [candidate for candidate in VOLUME_CONTROLS if candidate]
+    available = _list_amixer_controls()
+
+    for candidate in configured:
+        if _amixer_control_exists(candidate) and _amixer_control_has_playback_volume(candidate):
             return candidate
+
+    preferred = list(PREFERRED_VOLUME_CONTROLS)
+    for candidate in preferred:
+        for available_name in available:
+            if available_name.lower() == candidate.lower() and _amixer_control_has_playback_volume(available_name):
+                return available_name
+
+    for available_name in available:
+        if _amixer_control_has_playback_volume(available_name):
+            return available_name
+
+    if available:
+        raise RuntimeError(
+            "No supported ALSA playback volume control found. "
+            f"Configured: {', '.join(configured) or '(none)'}; "
+            f"available mixer controls: {', '.join(available)}"
+        )
+
     raise RuntimeError(
-        "No supported ALSA volume control found. "
-        f"Tried: {', '.join(VOLUME_CONTROLS)}"
+        "No ALSA mixer controls were found. "
+        f"Configured controls: {', '.join(configured) or '(none)'}"
     )
 
 
@@ -203,8 +271,6 @@ def get_volume(control: Optional[str] = None) -> dict:
     )
     if proc.returncode != 0:
         raise RuntimeError((proc.stderr or proc.stdout or "amixer volume read failed").strip())
-
-    import re
 
     matches = re.findall(r"\[(\d{1,3})%\]", proc.stdout or "")
     volume = int(matches[-1]) if matches else None
