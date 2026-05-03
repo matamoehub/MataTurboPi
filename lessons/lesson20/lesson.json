@@ -6,7 +6,7 @@
     {
       "id": "robot_league",
       "title": "Robot League",
-      "entry": "level_1/workbook.ipynb"
+      "entry": "robot_league.ipynb"
     },
     {
       "id": "level_1",
