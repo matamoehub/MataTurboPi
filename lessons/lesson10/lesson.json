@@ -1,0 +1,12 @@
+{
+  "id": "lesson10",
+  "title": "Lesson 10 - Workspace",
+  "description": "A V2 robot workspace for trying commands, testing sensors, and exploring the API from one notebook.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1",
+      "entry": "Workspace.ipynb"
+    }
+  ]
+}

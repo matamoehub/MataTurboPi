@@ -12,12 +12,15 @@ singleton-safe library that can:
 - display annotated images inline in Jupyter
 - calibrate colour HSV ranges from the notebook
 """
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 import copy
+import base64
+import json
 import os
 import tempfile
 import time
+import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -25,6 +28,7 @@ from ros_service_client import clear_process_singleton, get_process_singleton, s
 
 
 HSVRange = Tuple[Tuple[int, int, int], Tuple[int, int, int]]
+OPS_WEB_ENABLED_VALUES = {"1", "true", "yes", "on", "auto"}
 
 
 DEFAULT_COLOR_PROFILES: Dict[str, List[HSVRange]] = {
@@ -80,6 +84,217 @@ def _display_png_bytes(png_bytes: bytes) -> bool:
     except Exception:
         return False
     display(Image(data=png_bytes))
+    return True
+
+
+def _ops_web_enabled() -> bool:
+    value = str(os.environ.get("MATA_OPS_WEB_CAMERA", "auto")).strip().lower()
+    return value in OPS_WEB_ENABLED_VALUES
+
+
+def _ops_web_base() -> str:
+    return os.environ.get("OPS_WEB_BASE", "http://127.0.0.1")
+
+
+def _ops_web_snapshot_path() -> str:
+    return os.environ.get("OPS_WEB_SNAPSHOT_PATH", "/api/vision/snapshot")
+
+
+def _ops_web_timeout_s() -> float:
+    try:
+        return float(os.environ.get("OPS_WEB_TIMEOUT_S", "5.0"))
+    except Exception:
+        return 5.0
+
+
+def _ops_web_snapshot_frame(
+    camera_index: int = 0,
+    width: int = 640,
+    height: int = 480,
+    mirror: bool = False,
+):
+    cv2, np = _require_runtime()
+    url = _ops_web_base().rstrip("/") + _ops_web_snapshot_path()
+    payload = {
+        "camera_index": int(camera_index),
+        "width": int(width),
+        "height": int(height),
+        "mirror": bool(mirror),
+    }
+    data = json.dumps(payload).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    token = str(os.environ.get("ROBOT_TOKEN", "")).strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    with urllib.request.urlopen(req, timeout=_ops_web_timeout_s()) as response:
+        body = json.loads(response.read().decode("utf-8"))
+    if not body.get("ok"):
+        raise RuntimeError(f"robot_ops vision snapshot failed: {body}")
+    encoded = body.get("image_jpeg_b64")
+    if not encoded:
+        raise RuntimeError("robot_ops vision snapshot did not include image_jpeg_b64")
+    raw = base64.b64decode(encoded)
+    arr = np.frombuffer(raw, dtype=np.uint8)
+    frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if frame is None:
+        raise RuntimeError("robot_ops vision snapshot JPEG decode failed")
+    return frame
+
+
+class _OpsWebVideoCapture:
+    def __init__(self, source=0, api_preference=None, *args, **kwargs):
+        cv2, _np = _require_runtime()
+        self._cv2 = cv2
+        self._source = source
+        self._api_preference = api_preference
+        self._width = 640
+        self._height = 480
+        self._direct = None
+        self._use_ops_web = False
+        self._opened = False
+
+        original = getattr(cv2, "_mata_original_VideoCapture", None)
+        if original is None:
+            original = getattr(cv2, "VideoCapture")
+
+        try:
+            if api_preference is None:
+                self._direct = original(source, *args, **kwargs)
+            else:
+                self._direct = original(source, api_preference, *args, **kwargs)
+            self._opened = bool(self._direct.isOpened())
+        except Exception:
+            self._direct = None
+            self._opened = False
+
+        if not self._opened and _ops_web_enabled() and self._is_supported_source(source):
+            self._use_ops_web = True
+            self._opened = True
+
+    @staticmethod
+    def _is_supported_source(source) -> bool:
+        if isinstance(source, int):
+            return source >= 0
+        if isinstance(source, str) and source.startswith("/dev/video"):
+            return source.removeprefix("/dev/video").isdigit()
+        return False
+
+    def _camera_index(self) -> int:
+        if isinstance(self._source, int):
+            return int(self._source)
+        if isinstance(self._source, str) and self._source.startswith("/dev/video"):
+            try:
+                return int(self._source.removeprefix("/dev/video"))
+            except Exception:
+                return 0
+        return 0
+
+    def isOpened(self):
+        return bool(self._opened)
+
+    def read(self):
+        if self._use_ops_web:
+            try:
+                frame = _ops_web_snapshot_frame(
+                    camera_index=self._camera_index(),
+                    width=int(self._width),
+                    height=int(self._height),
+                    mirror=False,
+                )
+                return True, frame
+            except Exception:
+                return False, None
+        if self._direct is None:
+            return False, None
+        return self._direct.read()
+
+    def release(self):
+        if self._direct is not None:
+            try:
+                return self._direct.release()
+            except Exception:
+                return None
+        return None
+
+    def set(self, prop_id, value):
+        if int(prop_id) == int(getattr(self._cv2, "CAP_PROP_FRAME_WIDTH", -1)):
+            self._width = int(value)
+        elif int(prop_id) == int(getattr(self._cv2, "CAP_PROP_FRAME_HEIGHT", -1)):
+            self._height = int(value)
+        if self._direct is not None:
+            try:
+                return self._direct.set(prop_id, value)
+            except Exception:
+                return False
+        return True
+
+    def get(self, prop_id):
+        if int(prop_id) == int(getattr(self._cv2, "CAP_PROP_FRAME_WIDTH", -1)):
+            return float(self._width)
+        if int(prop_id) == int(getattr(self._cv2, "CAP_PROP_FRAME_HEIGHT", -1)):
+            return float(self._height)
+        if self._direct is not None:
+            try:
+                return self._direct.get(prop_id)
+            except Exception:
+                return 0.0
+        return 0.0
+
+    def __getattr__(self, name: str):
+        if self._direct is None:
+            raise AttributeError(name)
+        return getattr(self._direct, name)
+
+
+class _OpsWebFrameCapture:
+    def __init__(self, camera_index: int = 0, width: int = 640, height: int = 480):
+        self.camera_index = int(camera_index)
+        self.width = int(width)
+        self.height = int(height)
+
+    def isOpened(self):
+        return True
+
+    def read(self):
+        try:
+            frame = _ops_web_snapshot_frame(
+                camera_index=self.camera_index,
+                width=self.width,
+                height=self.height,
+                mirror=False,
+            )
+            return True, frame
+        except Exception:
+            return False, None
+
+    def release(self):
+        return None
+
+    def set(self, prop_id, value):
+        cv2, _np = _require_runtime()
+        if int(prop_id) == int(getattr(cv2, "CAP_PROP_FRAME_WIDTH", -1)):
+            self.width = int(value)
+        elif int(prop_id) == int(getattr(cv2, "CAP_PROP_FRAME_HEIGHT", -1)):
+            self.height = int(value)
+        return True
+
+
+def install_opencv_capture_fallback() -> bool:
+    if not _ops_web_enabled():
+        return False
+    try:
+        import cv2  # type: ignore
+    except Exception:
+        return False
+    if getattr(cv2, "_mata_ops_web_capture_installed", False):
+        return True
+    cv2._mata_original_VideoCapture = cv2.VideoCapture
+    cv2.VideoCapture = _OpsWebVideoCapture
+    cv2._mata_ops_web_capture_installed = True
     return True
 
 
@@ -251,14 +466,38 @@ class Vision:
         return cap
 
     def capture_frame(self):
-        cap = self._open_capture()
+        direct_error = None
+        cap = None
         try:
+            cap = self._open_capture()
             ok, frame = cap.read()
+            if ok and frame is not None:
+                return frame
+            direct_error = "Camera opened, but no image frame was captured"
+        except Exception as e:
+            direct_error = str(e)
         finally:
-            cap.release()
-        if not ok or frame is None:
-            raise RuntimeError("Camera opened, but no image frame was captured")
-        return frame
+            try:
+                if cap is not None:
+                    cap.release()
+            except Exception:
+                pass
+
+        if _ops_web_enabled():
+            try:
+                return _ops_web_snapshot_frame(
+                    camera_index=self.camera_index,
+                    width=max(160, int(self.width)),
+                    height=max(120, int(self.height)),
+                    mirror=False,
+                )
+            except Exception as e:
+                raise RuntimeError(
+                    "Camera capture failed through OpenCV and robot_ops web. "
+                    f"OpenCV error: {direct_error}. robot_ops error: {e}"
+                ) from e
+
+        raise RuntimeError(direct_error or "Camera capture failed")
 
     def _capture_rgb_frame(self):
         cv2, _np = _require_runtime()
@@ -321,6 +560,7 @@ class Vision:
         threshold = int(self.min_area if min_area is None else min_area)
         objects = []
         annotated = frame.copy()
+        frame_h, frame_w = frame.shape[:2]
 
         for contour in contours:
             area = float(cv2.contourArea(contour))
@@ -376,6 +616,54 @@ class Vision:
             "objects": objects,
             "path": path,
             "ranges": ranges,
+            "width": int(frame_w),
+            "height": int(frame_h),
+            "center_x": int(frame_w // 2),
+        }
+
+    def target_position(
+        self,
+        color: str,
+        target_x: Optional[int] = None,
+        deadzone: int = 50,
+        show: bool = True,
+        min_area: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        result = self.find_color_objects(color=color, show=show, min_area=min_area)
+        objects = result["objects"]
+        centre_x = int(result["center_x"] if target_x is None else target_x)
+        threshold = abs(int(deadzone))
+
+        if not objects:
+            return {
+                "color": result["color"],
+                "found": False,
+                "direction": "lost",
+                "error": None,
+                "target_x": centre_x,
+                "deadzone": threshold,
+                "object": None,
+                "result": result,
+            }
+
+        target = max(objects, key=lambda item: item["area"])
+        error = int(target["cx"] - centre_x)
+        if abs(error) <= threshold:
+            direction = "center"
+        elif error < 0:
+            direction = "left"
+        else:
+            direction = "right"
+
+        return {
+            "color": result["color"],
+            "found": True,
+            "direction": direction,
+            "error": error,
+            "target_x": centre_x,
+            "deadzone": threshold,
+            "object": target,
+            "result": result,
         }
 
     def detect_faces(

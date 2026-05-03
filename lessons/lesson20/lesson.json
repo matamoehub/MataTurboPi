@@ -1,0 +1,17 @@
+{
+  "id": "lesson20",
+  "title": "Lesson 20 - Robot League",
+  "description": "A V2 challenge workspace for movement, drift, eyes, camera, sonar, vision, speech, horn, and music.",
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1",
+      "entry": "workbook.ipynb"
+    },
+    {
+      "id": "demos",
+      "title": "Demos",
+      "entry": "Robot_Demo.ipynb"
+    }
+  ]
+}

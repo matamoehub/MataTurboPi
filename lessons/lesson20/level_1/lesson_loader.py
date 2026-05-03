@@ -16,11 +16,13 @@ from typing import Dict, Optional
 
 COMMON_MODULES = [
     "robot_moves",
+    "student_robot_moves",
     "eyes_lib",
     "camera_lib",
     "vision_lib",
     "tts_lib",
     "student_animation_lib",
+    "student_robot_v2",
     "sound",
     "line_sensors",
     "robot_controller_api",
@@ -116,7 +118,6 @@ def _resolve_common_lib(root: Path) -> Path:
         if candidate.is_dir():
             return candidate
 
-    preferred = candidates[0] if candidates else (root / "common" / "lib")
     raise FileNotFoundError(
         "Could not find common/lib. Checked: " + ", ".join(str(p) for p in candidates)
     )
@@ -198,18 +199,6 @@ def setup(
     preload_common: bool = True,
     expose_globals: bool = True,
 ):
-    """
-    Configure sys.path for common/lib + lessons/lib, run bootstrap,
-    and optionally preload common lesson modules.
-
-    default_domain:
-      - None: infer from env (ROS_DOMAIN_ID / robot vars), fallback "0"
-      - int/str: explicit domain override
-    backend:
-      - "sim": use simulator modules
-      - "real": use hardware modules
-      - None: use env/default (REAL)
-    """
     selected_backend = _resolve_backend(backend)
     previous_backend = str(os.environ.get("MATA_ACTIVE_BACKEND", "")).strip().lower()
     _apply_backend_env(selected_backend)
@@ -231,10 +220,13 @@ def setup(
     try:
         root = _find_repo_root(start)
     except FileNotFoundError as e:
-        if login_warning:
-            raise FileNotFoundError(f"{e}\n{login_warning}") from e
-        raise
-    common_lib = _resolve_common_lib(root)
+        _raise_workspace_error(start, e, login_warning)
+
+    try:
+        common_lib = _resolve_common_lib(root)
+    except FileNotFoundError as e:
+        _raise_workspace_error(start, e, login_warning)
+
     lessons_lib = root / "lessons" / "lib"
 
     for path in (lessons_lib, common_lib):

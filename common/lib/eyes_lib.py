@@ -1,20 +1,21 @@
-__version__ = "1.1.0"
+__version__ = "1.1.2"
 
 # eyes_lib.py
-import os
-import time
-import threading
 import atexit
-from typing import Tuple, Optional, List
+import json
+import os
+import threading
+import time
+import urllib.error
+import urllib.request
+from typing import List, Optional, Tuple
 
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
-from rclpy.executors import SingleThreadedExecutor
-
-from ros_robot_controller_msgs.msg import RGBStates, RGBState
+from ros_robot_controller_msgs.msg import RGBState, RGBStates
 
 ENV_TOPIC = os.getenv("EYES_TOPIC", "").strip()
+EYES_BACKEND = os.getenv("EYES_BACKEND", "auto").strip().lower() or "auto"
+EYES_CONTROLLER_URL = (os.getenv("EYES_CONTROLLER_URL", "").strip() or "http://127.0.0.1:8766").rstrip("/")
+EYES_CONTROLLER_TIMEOUT_S = float(os.getenv("EYES_CONTROLLER_TIMEOUT_S", "0.35"))
 
 CANDIDATE_TOPICS = [
     "/sonar_controller/set_rgb",
@@ -29,7 +30,9 @@ FLUSH_SPIN_S = float(os.getenv("EYES_FLUSH_SPIN_S", "0.15"))
 FLUSH_PAUSE_S = float(os.getenv("EYES_FLUSH_PAUSE_S", "0.00"))
 
 
-def _qos_rel() -> QoSProfile:
+def _qos_rel():
+    from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
+
     return QoSProfile(
         reliability=QoSReliabilityPolicy.RELIABLE,
         history=QoSHistoryPolicy.KEEP_LAST,
@@ -38,18 +41,48 @@ def _qos_rel() -> QoSProfile:
 
 
 def _rclpy_init_once() -> None:
+    import rclpy
+
     if not rclpy.ok():
         rclpy.init(args=None)
 
 
-class Eyes(Node):
-    """
-    Simple RGB eye helper.
-    Publishes ros_robot_controller_msgs/RGBStates to the sonar_controller (or controller RGB topic).
+def _controller_health(url: str) -> tuple[bool, str]:
+    try:
+        req = urllib.request.Request(f"{url}/health", method="GET")
+        with urllib.request.urlopen(req, timeout=EYES_CONTROLLER_TIMEOUT_S) as resp:
+            payload = json.loads(resp.read().decode("utf-8") or "{}")
+        if payload.get("ok"):
+            return True, f"controller:{url}"
+        return False, f"controller_not_ok:{payload}"
+    except Exception as exc:
+        return False, f"controller_unavailable:{exc}"
 
-    Key behaviour:
-    - Spins a local executor after publish so messages actually go out in notebooks.
-    - Uses a unique node name to avoid collisions when re-running cells.
+
+def _controller_post(url: str, payload: dict) -> None:
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"{url}/set",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=max(0.35, EYES_CONTROLLER_TIMEOUT_S)) as resp:
+        body = json.loads(resp.read().decode("utf-8") or "{}")
+    if not body.get("ok"):
+        raise RuntimeError(f"controller_rejected:{body}")
+
+
+class Eyes:
+    """Simple RGB eye helper.
+
+    Preferred path:
+    - Send commands to the local eyes_controller service, which keeps robot eye
+      control out of the student kernel and uses one supervised ROS publisher.
+
+    Fallback path:
+    - Publish ros_robot_controller_msgs/RGBStates to the sonar/controller RGB
+      topic and flush a local executor so messages actually go out.
     """
 
     def __init__(
@@ -58,34 +91,59 @@ class Eyes(Node):
         indices: Tuple[int, int] = DEFAULT_INDICES,
         node_name: str = "eyes_rgb_client",
     ):
-        _rclpy_init_once()
-
-        # unique node name avoids "Publisher already registered for provided node name"
-        uniq = f"{node_name}_{os.getpid()}_{int(time.time()*1000)%100000}"
-        super().__init__(uniq)
-
-        self.topic = topic or ENV_TOPIC or self._auto_topic()
         self.left_i = int(indices[0])
         self.right_i = int(indices[1])
+        self.topic = topic or ENV_TOPIC or CANDIDATE_TOPICS[0]
+        self.backend_reason = ""
+        self.controller_url = EYES_CONTROLLER_URL
+        self._ros_node = None
+        self._exec = None
+        self.pub = None
 
-        self.pub = self.create_publisher(RGBStates, self.topic, _qos_rel())
-
-        # Local executor so publish flush works reliably in notebooks
-        self._exec = SingleThreadedExecutor()
-        self._exec.add_node(self)
+        self.backend = "ros"
+        if EYES_BACKEND != "ros":
+            ok, reason = _controller_health(self.controller_url)
+            if ok:
+                self.backend = "controller"
+                self.backend_reason = reason
+            elif EYES_BACKEND == "controller":
+                raise RuntimeError(reason)
+            else:
+                self.backend_reason = reason
+                self._init_ros_backend(topic=topic, node_name=node_name)
+        else:
+            self.backend_reason = "ros_forced"
+            self._init_ros_backend(topic=topic, node_name=node_name)
 
         self._blink_thread: Optional[threading.Thread] = None
         self._blink_stop = threading.Event()
 
         atexit.register(self.off)
+        print(
+            f"eyes_lib ready → backend={self.backend}"
+            f" reason={self.backend_reason} topic={self.topic} indices={indices}"
+        )
 
-        print(f"eyes_lib ready → topic={self.topic} indices={indices}")
+    def _init_ros_backend(self, topic: Optional[str], node_name: str) -> None:
+        from rclpy.executors import SingleThreadedExecutor
+        from rclpy.node import Node
 
-    # ---------- ROS helpers ----------
-    def _auto_topic(self) -> str:
-        # Try to detect which topic exists in the graph (best-effort)
+        _rclpy_init_once()
+
+        uniq = f"{node_name}_{os.getpid()}_{int(time.time()*1000)%100000}"
+        node = Node(uniq)
+        self.topic = topic or ENV_TOPIC or self._auto_topic(node)
+        self.pub = node.create_publisher(RGBStates, self.topic, _qos_rel())
+
+        executor = SingleThreadedExecutor()
+        executor.add_node(node)
+
+        self._ros_node = node
+        self._exec = executor
+
+    def _auto_topic(self, node) -> str:
         try:
-            topics = {name for (name, _types) in self.get_topic_names_and_types()}
+            topics = {name for (name, _types) in node.get_topic_names_and_types()}
             for t in CANDIDATE_TOPICS:
                 if t in topics:
                     return t
@@ -94,9 +152,8 @@ class Eyes(Node):
         return CANDIDATE_TOPICS[0]
 
     def _flush(self, seconds: float = FLUSH_SPIN_S) -> None:
-        """
-        Spin the local executor briefly so outgoing messages actually get sent.
-        """
+        if self._exec is None:
+            return
         end = time.time() + float(seconds)
         while time.time() < end:
             self._exec.spin_once(timeout_sec=0.05)
@@ -104,16 +161,40 @@ class Eyes(Node):
             time.sleep(FLUSH_PAUSE_S)
 
     def diagnose(self) -> None:
-        topics = self.get_topic_names_and_types()
-        names = sorted([t[0] for t in topics])
+        print("Backend:", self.backend)
+        print("Backend detail:", self.backend_reason)
+        if self.backend == "controller":
+            print("Controller URL:", self.controller_url)
+            print("Topic in use:", self.topic)
+            return
         print("Topic in use:", self.topic)
+        if self._ros_node is None:
+            return
+        topics = self._ros_node.get_topic_names_and_types()
+        names = sorted([t[0] for t in topics])
         print("Available RGB-like topics:")
         for n in names:
             if "rgb" in n.lower() or "led" in n.lower() or "sonar" in n.lower():
                 print(" -", n)
 
-    # ---------- Publish API ----------
     def _publish_states(self, states: List[RGBState]) -> None:
+        if self.backend == "controller":
+            _controller_post(
+                self.controller_url,
+                {
+                    "states": [
+                        {
+                            "index": int(s.index),
+                            "red": int(s.red),
+                            "green": int(s.green),
+                            "blue": int(s.blue),
+                        }
+                        for s in states
+                    ]
+                },
+            )
+            return
+
         msg = RGBStates()
         msg.states = states
         self.pub.publish(msg)
@@ -134,19 +215,14 @@ class Eyes(Node):
         self._publish_states([RGBState(index=self.right_i, red=int(r), green=int(g), blue=int(b))])
 
     def set_index(self, idx: int, r: int, g: int, b: int) -> None:
-        """
-        Useful for scanning. Explicit index publish.
-        """
         self._publish_states([RGBState(index=int(idx), red=int(r), green=int(g), blue=int(b))])
 
     def off(self) -> None:
         try:
             self.set_both(0, 0, 0)
         except Exception:
-            # never crash on shutdown
             pass
 
-    # ---------- Effects ----------
     def blink(self, color=(255, 255, 255), period_s=0.25, duration_s=1.0) -> None:
         end = time.time() + float(duration_s)
         on = True
@@ -166,10 +242,6 @@ class Eyes(Node):
         color=(0, 0, 255),
         hold_s: float = 0.35,
     ) -> None:
-        """
-        Cycles RGB indices to help you visually identify which indices are the eyes.
-        Note: 'end' is inclusive.
-        """
         r, g, b = color
         for i in range(int(start), int(end) + 1):
             self.set_index(i, r, g, b)
@@ -177,6 +249,20 @@ class Eyes(Node):
             time.sleep(float(hold_s))
             self.set_index(i, 0, 0, 0)
             time.sleep(0.05)
+
+    def close(self) -> None:
+        try:
+            self.off()
+        except Exception:
+            pass
+        if self._ros_node is not None:
+            try:
+                self._ros_node.destroy_node()
+            except Exception:
+                pass
+        self._ros_node = None
+        self._exec = None
+        self.pub = None
 
 
 _EYES_SINGLETON: Optional[Eyes] = None
@@ -189,11 +275,7 @@ def reset_eyes() -> None:
     if inst is None:
         return
     try:
-        inst.off()
-    except Exception:
-        pass
-    try:
-        inst.destroy_node()
+        inst.close()
     except Exception:
         pass
 
@@ -203,9 +285,8 @@ def get_eyes(
     indices: Tuple[int, int] = DEFAULT_INDICES,
     force_reset: bool = False,
 ) -> Eyes:
-    """
-    Singleton eyes instance (keeps one node/publisher alive per process).
-    Use force_reset=True to recreate the node/publisher after a ROS/topic failure.
+    """Singleton eyes instance.
+    Use force_reset=True to recreate the backend after a controller or ROS failure.
     """
     global _EYES_SINGLETON
     if force_reset:

@@ -20,7 +20,11 @@ else:
         myRobot = None
         _LOAD_ERRORS["student_robot_v2"] = str(e)
 
-bot = srv2.bot if srv2 is not None else None
+bot = getattr(srv2, "bot", None) if srv2 is not None else None
+if srv2 is not None and bot is None:
+    _LOAD_ERRORS["student_robot_v2"] = (
+        f"student_robot_v2 missing bot(); imported {getattr(srv2, '__file__', 'unknown file')}"
+    )
 robot = myRobot
 
 

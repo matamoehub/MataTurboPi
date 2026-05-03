@@ -1,4 +1,4 @@
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 # tts_lib.py
 # Piper TTS helper for Matamoe robots (Python 3.10)
@@ -19,6 +19,7 @@ import hashlib
 import tempfile
 import wave
 import contextlib
+import re
 from typing import Optional
 
 # Allow override so it works no matter which user runs Jupyter/services
@@ -32,7 +33,25 @@ VOICE_MAP = {
 }
 
 DEFAULT_VOICE = "ryan"
+PIPER_BIN_ENV = "PIPER_BIN"
 PIPER_VOICE_ENV = "PIPER_VOICE"
+VOLUME_CONTROLS = tuple(
+    name.strip()
+    for name in os.environ.get("ROBOT_VOLUME_CONTROLS", "Master,PCM,Speaker").split(",")
+    if name.strip()
+)
+DEFAULT_AUDIO_VOLUME = max(0, min(100, int(os.environ.get("ROBOT_DEFAULT_AUDIO_VOLUME", "40"))))
+_DEFAULT_VOLUME_READY = False
+PREFERRED_VOLUME_CONTROLS = (
+    "Master",
+    "PCM",
+    "Speaker",
+    "Headphone",
+    "Playback",
+    "Line Out",
+    "Digital",
+    "Audio",
+)
 
 
 def available_voices(installed_only: bool = True) -> list[str]:
@@ -79,6 +98,33 @@ def _safe_workdir() -> str:
     return "/tmp"
 
 
+
+
+def _resolve_piper_bin() -> str:
+    configured = (os.environ.get(PIPER_BIN_ENV) or "").strip()
+    candidates = []
+    if configured:
+        candidates.append(configured)
+    discovered = shutil.which("piper")
+    if discovered:
+        candidates.append(discovered)
+    candidates.append("/opt/robot/piper/piper")
+
+    seen = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+
+    tried = ", ".join(candidates) if candidates else "(none)"
+    raise FileNotFoundError(
+        "Piper binary not found. Tried: " + tried +
+        ". Set PIPER_BIN to the correct executable path."
+    )
+
+
 def _voice_paths(name: Optional[str]):
     name = _resolve_voice(name)
     model_file, config_file = VOICE_MAP[name]
@@ -99,6 +145,153 @@ def _require_aplay():
         )
 
 
+def _require_amixer():
+    if not shutil.which("amixer"):
+        raise RuntimeError(
+            "amixer not found. Install: sudo apt update && sudo apt install -y alsa-utils"
+        )
+
+
+def _clamp_volume_percent(percent: int) -> int:
+    return max(0, min(100, int(percent)))
+
+
+def _amixer_control_exists(control: str) -> bool:
+    proc = subprocess.run(
+        ["amixer", "sget", str(control)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        cwd=_safe_workdir(),
+        check=False,
+    )
+    return proc.returncode == 0
+
+
+def _list_amixer_controls() -> list[str]:
+    proc = subprocess.run(
+        ["amixer", "scontrols"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=_safe_workdir(),
+        check=False,
+    )
+    if proc.returncode != 0:
+        return []
+    found = re.findall(r"Simple mixer control '([^']+)'", proc.stdout or "")
+    seen = set()
+    ordered = []
+    for name in found:
+        if name not in seen:
+            seen.add(name)
+            ordered.append(name)
+    return ordered
+
+
+def _amixer_control_has_playback_volume(control: str) -> bool:
+    proc = subprocess.run(
+        ["amixer", "sget", str(control)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        cwd=_safe_workdir(),
+        check=False,
+    )
+    if proc.returncode != 0:
+        return False
+    output = proc.stdout or ""
+    return bool(re.search(r"\[\d{1,3}%\]", output))
+
+
+def _pick_volume_control(control: Optional[str] = None) -> str:
+    _require_amixer()
+    if control:
+        return str(control)
+    configured = [candidate for candidate in VOLUME_CONTROLS if candidate]
+    available = _list_amixer_controls()
+
+    for candidate in configured:
+        if _amixer_control_exists(candidate) and _amixer_control_has_playback_volume(candidate):
+            return candidate
+
+    preferred = list(PREFERRED_VOLUME_CONTROLS)
+    for candidate in preferred:
+        for available_name in available:
+            if available_name.lower() == candidate.lower() and _amixer_control_has_playback_volume(available_name):
+                return available_name
+
+    for available_name in available:
+        if _amixer_control_has_playback_volume(available_name):
+            return available_name
+
+    if available:
+        raise RuntimeError(
+            "No supported ALSA playback volume control found. "
+            f"Configured: {', '.join(configured) or '(none)'}; "
+            f"available mixer controls: {', '.join(available)}"
+        )
+
+    raise RuntimeError(
+        "No ALSA mixer controls were found. "
+        f"Configured controls: {', '.join(configured) or '(none)'}"
+    )
+
+
+def set_volume(percent: int, control: Optional[str] = None) -> dict:
+    """
+    Set robot audio output volume using ALSA.
+    """
+    value = _clamp_volume_percent(percent)
+    chosen = _pick_volume_control(control)
+    proc = subprocess.run(
+        ["amixer", "set", chosen, f"{value}%"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=_safe_workdir(),
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or proc.stdout or "amixer volume set failed").strip())
+    return {"ok": True, "control": chosen, "volume": value}
+
+
+def get_volume(control: Optional[str] = None) -> dict:
+    """
+    Return the current ALSA volume percentage for the chosen control.
+    """
+    chosen = _pick_volume_control(control)
+    proc = subprocess.run(
+        ["amixer", "sget", chosen],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=_safe_workdir(),
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or proc.stdout or "amixer volume read failed").strip())
+
+    matches = re.findall(r"\[(\d{1,3})%\]", proc.stdout or "")
+    volume = int(matches[-1]) if matches else None
+    return {"ok": True, "control": chosen, "volume": volume, "raw": proc.stdout}
+
+
+def ensure_default_volume(percent: int = DEFAULT_AUDIO_VOLUME, control: Optional[str] = None) -> dict:
+    """
+    Set the default ALSA playback volume once per process.
+    This keeps speech output at a classroom-friendly level without requiring
+    each lesson to call set_volume manually.
+    """
+    global _DEFAULT_VOLUME_READY
+    if _DEFAULT_VOLUME_READY:
+        chosen = _pick_volume_control(control)
+        return {"ok": True, "control": chosen, "volume": _clamp_volume_percent(percent), "cached": True}
+    result = set_volume(percent, control=control)
+    _DEFAULT_VOLUME_READY = True
+    return result
+
+
 def synth_to_wav(
     text: str,
     voice: Optional[str] = None,
@@ -110,10 +303,11 @@ def synth_to_wav(
     Synthesize speech to a wav file using piper.
     """
     model, config = _voice_paths(voice)
+    piper_bin = _resolve_piper_bin()
 
     proc = subprocess.run(
         [
-            "piper",
+            piper_bin,
             "-m",
             model,
             "-c",
@@ -190,6 +384,10 @@ def play_wav_async(path: str, device: Optional[str] = None):
     Play wav using aplay (returns subprocess.Popen).
     """
     _require_aplay()
+    try:
+        ensure_default_volume()
+    except Exception as e:
+        print("[tts_lib] warn: could not set default volume:", e)
     cmd = ["aplay"]
     if device:
         cmd += ["-D", device]

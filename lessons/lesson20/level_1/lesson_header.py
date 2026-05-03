@@ -1,4 +1,4 @@
-"""Lesson 17 — Advanced Project V2 header. Use in any cell: from lesson_header import *"""
+"""Lesson 20 — Robot League header. Use in any cell: from lesson_header import *"""
 
 from lesson_loader import setup as _setup
 lesson_info = _setup(verbose=False)
@@ -21,10 +21,6 @@ else:
         _LOAD_ERRORS["student_robot_v2"] = str(e)
 
 bot = getattr(srv2, "bot", None) if srv2 is not None else None
-if srv2 is not None and bot is None:
-    _LOAD_ERRORS["student_robot_v2"] = (
-        f"student_robot_v2 missing bot(); imported {getattr(srv2, '__file__', 'unknown file')}"
-    )
 robot = myRobot
 
 
