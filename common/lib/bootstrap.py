@@ -97,9 +97,10 @@ def resolve_common_lib(root: Path) -> Path:
             candidates.append(Path(value).expanduser())
 
     candidates.extend([
+        Path("/opt/robot/common/lib"),
+        Path("/opt/common/lib"),
         Path("/opt/robot/students/lessons_cache/common/lib"),
         root / "common" / "lib",
-        Path("/opt/robot/common/lib"),
     ])
 
     seen = set()
