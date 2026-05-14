@@ -78,7 +78,8 @@ class MoveNamespace(_BackendProxy):
         fn = self._resolve(move_name)
         if fn is None:
             raise AttributeError(f"Move '{move_name}' is not available")
-        self._owner._status("move", move_name, f"seconds={seconds}", f"speed={speed}")
+        effective_speed = float(self._owner.base_speed) if speed is None else float(speed)
+        self._owner._status("move", move_name, f"seconds={seconds}", f"speed={effective_speed}")
         return fn(seconds=seconds, speed=speed, **kwargs)
 
     def forward(self, seconds: float = 0.5, speed: Optional[float] = None):
