@@ -1,4 +1,5 @@
 # robot_controller_api.py — low-level TurboPi motor API (ROS2 direct motor control)
+import threading
 import time
 import rclpy
 from rclpy.node import Node
@@ -14,6 +15,10 @@ TOPIC_ENABLE = "/ros_robot_controller/enable_reception"
 _node = None
 _pub_speed = None
 _pub_enable = None
+
+# Set by all_stop() to interrupt any stream_speeds() running in another thread.
+# Cleared at the start of each stream_speeds() so that a new move can proceed.
+_stop_event = threading.Event()
 
 def _qos_rel(depth: int = 10) -> QoSProfile:
     return QoSProfile(
@@ -53,18 +58,35 @@ def send_speeds(pairs):
 def stream_speeds(pairs, seconds: float = 0.5, rate_hz: float = 20.0):
     """
     Re-publish 'pairs' for 'seconds' then stop the same motors.
-    This matches the behaviour you already know works.
+
+    Interrupted cleanly in two scenarios:
+      1. Jupyter Stop button / KeyboardInterrupt — the try/finally always
+         sends zero speeds so the motors don't keep spinning.
+      2. all_stop() called from another thread — sets _stop_event which
+         causes the loop to exit early, then the finally block sends zeros.
     """
     _ensure()
+    _stop_event.clear()          # allow this new movement to run
     end = time.time() + float(seconds)
     dt = 1.0 / float(rate_hz)
-    while time.time() < end:
-        send_speeds(pairs)
-        time.sleep(dt)
-
     ids = [int(i) for (i, _) in pairs]
-    send_speeds([(i, 0.0) for i in ids])
+    try:
+        while time.time() < end:
+            if _stop_event.is_set():
+                break
+            send_speeds(pairs)
+            time.sleep(dt)
+    finally:
+        # Always zero the motors — catches KeyboardInterrupt and thread stop.
+        send_speeds([(i, 0.0) for i in ids])
 
 def all_stop(ids=(1, 2, 3, 4)):
+    """
+    Immediately stop all motors.
+
+    Sets _stop_event so any stream_speeds() running in another thread exits
+    its loop on the next iteration (within one rate_hz tick, typically 50 ms).
+    """
     _ensure()
+    _stop_event.set()
     send_speeds([(int(i), 0.0) for i in ids])

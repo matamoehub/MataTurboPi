@@ -36,6 +36,21 @@ COMMON_MODULES = [
     "qrcode_lib",
 ]
 
+# If a module was cached while its file was zero-byte (auto-heal race on boot),
+# it will appear importable but be missing its core symbols.  These sentinels
+# are checked before each import; a stale cache entry is evicted so the module
+# is re-read from disk after the health-check has repaired the file.
+STALE_MODULE_SENTINELS: Dict[str, str] = {
+    "student_robot_v2":     "bot",
+    "sonar_lib":            "get_sonar",
+    "robot_moves":          "forward",
+    "student_robot_moves":  "forward",
+    "eyes_lib":             "Eyes",
+    "camera_lib":           "Camera",
+    "tts_lib":              "say",
+    "student_animation_lib": "animate",
+}
+
 BACKEND_MODULES = [
     "robot_moves",
     "eyes_lib",
@@ -291,6 +306,17 @@ def setup(
     loaded: Dict[str, object] = {}
     if preload_common:
         for name in COMMON_MODULES:
+            # Evict any stale/zero-byte cached module before importing.
+            # A module imported while its file was 0 bytes loads successfully
+            # but is missing its exported symbols; detect that and force a
+            # fresh load from disk.
+            sentinel = STALE_MODULE_SENTINELS.get(name)
+            if sentinel:
+                cached = sys.modules.get(name)
+                if cached is not None and not hasattr(cached, sentinel):
+                    sys.modules.pop(name, None)
+                    if verbose:
+                        print(f"[lesson_loader] evict stale {name} (missing '{sentinel}')")
             try:
                 loaded[name] = importlib.import_module(name)
             except Exception as e:

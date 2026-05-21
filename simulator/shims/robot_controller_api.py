@@ -21,6 +21,9 @@ def send_speeds(pairs):
 
 def stream_speeds(pairs, seconds: float = 0.5, rate_hz: float = 20.0):
     send_speeds(pairs)
+    # Mirror the real implementation: always zero motors after the move.
+    ids = [int(i) for (i, _) in pairs]
+    send_speeds([(i, 0.0) for i in ids])
 
 
 def all_stop(ids=(1, 2, 3, 4)):
