@@ -1,9 +1,23 @@
 #!/usr/bin/env python3
 """
-Ultrasonic / sonar helper built on the same ROS topic used by the app nodes.
-"""
-__version__ = "1.1.0"
+sonar_lib — Ultrasonic / sonar distance reader.
 
+Primary:  direct I2C  (smbus2, bus 1, addr 0x77, reg 0x01, 2-byte big-endian mm)
+Fallback: ROS2 topic  (/sonar_controller/get_distance)
+
+The I2C path reads in ~1 ms with no ROS dependency, so the sonar works even
+when sonar_controller is restarting or the ROS graph is degraded.
+
+Quick start (new API):
+    from sonar_lib import get_distance_cm
+    print(get_distance_cm())           # → 45.0, or None if unavailable
+
+Backward-compatible API still works:
+    from sonar_lib import get_sonar
+    sonar = get_sonar()
+    print(sonar.get_distance_cm())
+"""
+__version__ = "2.0.0"
 
 import os
 import threading
@@ -11,53 +25,167 @@ import time
 from collections import deque
 from statistics import mean, stdev
 from typing import Deque, List, Optional
-from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
+from ros_service_client import (
+    clear_process_singleton,
+    get_process_singleton,
+    set_process_singleton,
+)
+
+# ── I2C configuration ─────────────────────────────────────────────────────────
+# Hiwonder sonar module sits at 0x77 on bus 1.
+# Readings are 2 bytes big-endian starting at register 0x01, unit: mm.
+_I2C_BUS  = int(os.environ.get("SONAR_I2C_BUS",  "1"))
+_I2C_ADDR = int(os.environ.get("SONAR_I2C_ADDR", "0x77"), 16)
+_I2C_REG  = int(os.environ.get("SONAR_I2C_REG",  "0x01"), 16)
+_I2C_MIN_MM = 20    # sensor floor — below this the reading is noise
+_I2C_MAX_MM = 4000  # sensor ceiling (4 m)
+
+# Rate-limit cache: avoids hammering the I2C bus on rapid successive calls.
+# 50 ms → ~20 reads/s max.  Set SONAR_I2C_CACHE_TTL_S=0 to disable.
+_I2C_CACHE_TTL_S = float(os.environ.get("SONAR_I2C_CACHE_TTL_S", "0.05"))
+
+_smbus2_available: Optional[bool] = None   # None = not yet probed
+
+
+def _smbus2_ok() -> bool:
+    global _smbus2_available
+    if _smbus2_available is None:
+        try:
+            import smbus2  # noqa: F401
+            _smbus2_available = True
+        except ImportError:
+            _smbus2_available = False
+    return bool(_smbus2_available)
+
+
+# ── ROS imports — optional, used only as fallback ─────────────────────────────
 try:
     import rclpy
     from rclpy.executors import SingleThreadedExecutor
     from rclpy.node import Node
     from std_msgs.msg import Int32
-except Exception as e:  # pragma: no cover - depends on robot runtime
-    rclpy = None
-    SingleThreadedExecutor = None
-    Node = object  # type: ignore[assignment]
-    Int32 = None
-    _SONAR_IMPORT_ERROR = e
+except Exception as _e:
+    rclpy = None                    # type: ignore[assignment]
+    SingleThreadedExecutor = None   # type: ignore[assignment]
+    Node = object                   # type: ignore[assignment,misc]
+    Int32 = None                    # type: ignore[assignment]
+    _SONAR_IMPORT_ERROR: Optional[Exception] = _e
 else:
     _SONAR_IMPORT_ERROR = None
 
+DEFAULT_TOPIC = (
+    os.environ.get("SONAR_TOPIC", "/sonar_controller/get_distance").strip()
+    or "/sonar_controller/get_distance"
+)
 
-DEFAULT_TOPIC = os.environ.get("SONAR_TOPIC", "/sonar_controller/get_distance").strip() or "/sonar_controller/get_distance"
-
-# Outlier rejection: readings more than this many std-devs from the window mean
-# are discarded before averaging.  1.5 removes spikes while keeping valid data.
 _OUTLIER_SIGMA = float(os.environ.get("SONAR_OUTLIER_SIGMA", "1.5"))
 
 
-def _filtered_mean(samples: List[int]) -> float:
-    """
-    Return a robust mean of sonar samples with outlier rejection.
+# ── I2C cache (module-level, thread-safe) ─────────────────────────────────────
+_i2c_lock = threading.Lock()
+_i2c_cache_mm: Optional[int] = None
+_i2c_cache_ts: float = 0.0
+_last_source: str = "none"   # "i2c" | "ros" | "none"
 
-    Steps (mirrors Hiwonder's avoidance approach):
-      1. With ≤ 2 samples, use simple mean (not enough data to detect outliers).
-      2. Calculate window mean and std dev.
-      3. Discard any sample more than _OUTLIER_SIGMA std-devs from the mean.
-      4. Average the survivors; fall back to simple mean if all are rejected.
-    """
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _filtered_mean(samples: List[int]) -> float:
+    """Outlier-rejecting mean used by the ROS window filter."""
     if len(samples) <= 2:
         return mean(samples)
     mu = mean(samples)
     sigma = stdev(samples)
     if sigma == 0.0:
-        return mu  # all identical — no outliers possible
+        return mu
     survivors = [v for v in samples if abs(v - mu) <= _OUTLIER_SIGMA * sigma]
     return mean(survivors) if survivors else mu
 
 
+def _read_i2c_raw() -> Optional[int]:
+    """One synchronous I2C read (~1 ms).  Returns mm, or None on any error."""
+    if not _smbus2_ok():
+        return None
+    try:
+        from smbus2 import SMBus
+        with SMBus(_I2C_BUS) as bus:
+            raw = bus.read_i2c_block_data(_I2C_ADDR, _I2C_REG, 2)
+            mm = (raw[0] << 8) | raw[1]
+            if _I2C_MIN_MM <= mm <= _I2C_MAX_MM:
+                return mm
+    except Exception:
+        pass
+    return None
+
+
+# ── Primary API ───────────────────────────────────────────────────────────────
+
+def get_distance_mm(use_cache: bool = True) -> Optional[int]:
+    """
+    Return the current sonar distance in mm, or None if unavailable.
+
+    Tries I2C first (< 1 ms, no ROS dependency).  Falls back to the ROS
+    subscriber if I2C is unavailable (wrong bus/addr, smbus2 missing, etc.).
+
+    Results are cached for _I2C_CACHE_TTL_S (default 50 ms) to avoid
+    hammering the I2C bus on rapid successive calls.
+    Pass use_cache=False to always do a fresh hardware read.
+    """
+    global _i2c_cache_mm, _i2c_cache_ts, _last_source
+    now = time.monotonic()
+
+    if use_cache and _I2C_CACHE_TTL_S > 0:
+        with _i2c_lock:
+            if _i2c_cache_mm is not None and (now - _i2c_cache_ts) < _I2C_CACHE_TTL_S:
+                return _i2c_cache_mm
+
+    # Primary: I2C
+    mm = _read_i2c_raw()
+    if mm is not None:
+        with _i2c_lock:
+            _i2c_cache_mm = mm
+            _i2c_cache_ts = time.monotonic()
+            _last_source = "i2c"
+        return mm
+
+    # Fallback: ROS subscriber
+    try:
+        sonar = _get_ros_sonar()
+        ros_mm = sonar.wait_for_reading(timeout_s=2.0)
+        if ros_mm is not None:
+            with _i2c_lock:
+                _i2c_cache_mm = int(ros_mm)
+                _i2c_cache_ts = time.monotonic()
+                _last_source = "ros"
+            return int(ros_mm)
+    except Exception:
+        pass
+
+    return None
+
+
+def get_distance_cm(use_cache: bool = True) -> Optional[float]:
+    """Return the current sonar distance in cm, or None if unavailable."""
+    mm = get_distance_mm(use_cache=use_cache)
+    if mm is None:
+        return None
+    return round(mm / 10.0, 1)
+
+
+def last_source() -> str:
+    """Return 'i2c', 'ros', or 'none' — how the last reading was obtained."""
+    with _i2c_lock:
+        return _last_source
+
+
+# ── ROS Sonar node — fallback subscriber ─────────────────────────────────────
+
 def _require_runtime() -> None:
     if _SONAR_IMPORT_ERROR is not None or rclpy is None or Int32 is None:
-        raise RuntimeError(f"ROS sonar dependencies are not available: {_SONAR_IMPORT_ERROR}")
+        raise RuntimeError(
+            f"ROS sonar dependencies are not available: {_SONAR_IMPORT_ERROR}"
+        )
 
 
 def _rclpy_init_once() -> None:
@@ -66,7 +194,14 @@ def _rclpy_init_once() -> None:
         rclpy.init(args=None)
 
 
-class Sonar(Node):
+class Sonar(Node):  # type: ignore[misc]
+    """
+    ROS2-based sonar subscriber.
+
+    Used as a fallback when I2C is unavailable.  New code should call
+    get_distance_mm() / get_distance_cm() instead, which use I2C as primary.
+    """
+
     def __init__(
         self,
         topic: str = DEFAULT_TOPIC,
@@ -123,25 +258,24 @@ class Sonar(Node):
             if self._last_mm is not None:
                 return int(self._last_mm)
             time.sleep(0.02)
-        raise TimeoutError(f"No sonar reading received from {self.topic} within {timeout_s}s")
+        raise TimeoutError(
+            f"No sonar reading received from {self.topic} within {timeout_s}s"
+        )
 
     def get_distance_mm(self, filtered: bool = False) -> int:
         if filtered and self._samples:
-            # Use outlier-rejecting mean for improved reliability on noisy hardware.
             return int(round(_filtered_mean(list(self._samples))))
         if self._last_mm is None:
             return 0
         return int(self._last_mm)
 
     def get_distance_cm(self, filtered: bool = False) -> int:
-        value = self.get_distance_mm(filtered=filtered)
-        return int(round(float(value) / 10.0))
+        return int(round(self.get_distance_mm(filtered=filtered) / 10.0))
 
     def is_closer_than(self, threshold_cm: float, filtered: bool = True) -> bool:
         if not self.has_reading():
             return False
-        value = self.get_distance_cm(filtered=filtered)
-        return bool(value <= float(threshold_cm))
+        return bool(self.get_distance_cm(filtered=filtered) <= float(threshold_cm))
 
     @property
     def last_update_age_s(self) -> Optional[float]:
@@ -150,18 +284,38 @@ class Sonar(Node):
         return max(0.0, time.time() - self._last_at)
 
 
-def get_sonar(topic: str = DEFAULT_TOPIC, window: int = 5) -> Sonar:
+def _get_ros_sonar(topic: str = DEFAULT_TOPIC, window: int = 5) -> Sonar:
+    """Get (or create) the module-level ROS Sonar singleton."""
     key = "sonar_lib:sonar"
     inst = get_process_singleton(key)
     if inst is None:
-        resolved_topic = str(topic or DEFAULT_TOPIC).strip() or DEFAULT_TOPIC
-        if not resolved_topic.startswith("/"):
-            resolved_topic = f"/{resolved_topic}"
-        inst = set_process_singleton(key, Sonar(topic=resolved_topic, window=window))
-    return inst
+        resolved = str(topic or DEFAULT_TOPIC).strip() or DEFAULT_TOPIC
+        if not resolved.startswith("/"):
+            resolved = f"/{resolved}"
+        inst = set_process_singleton(key, Sonar(topic=resolved, window=window))
+    return inst  # type: ignore[return-value]
+
+
+# ── Backward-compatible API ───────────────────────────────────────────────────
+
+def get_sonar(topic: str = DEFAULT_TOPIC, window: int = 5) -> Sonar:
+    """
+    Return the module-level ROS Sonar singleton.
+
+    Kept for backward compatibility.  Prefer get_distance_mm() / get_distance_cm()
+    for new code — they use I2C as primary and don't require sonar_controller running.
+    """
+    return _get_ros_sonar(topic=topic, window=window)
 
 
 def reset_sonar() -> None:
+    """
+    Clear all sonar state: ROS subscriber singleton and I2C reading cache.
+
+    Call this when you want the next read to be guaranteed fresh
+    (e.g. after the robot has moved to a new position).
+    """
+    global _i2c_cache_mm, _i2c_cache_ts, _last_source
     key = "sonar_lib:sonar"
     inst = get_process_singleton(key)
     if inst is not None:
@@ -170,3 +324,7 @@ def reset_sonar() -> None:
         except Exception:
             pass
     clear_process_singleton(key)
+    with _i2c_lock:
+        _i2c_cache_mm = None
+        _i2c_cache_ts = 0.0
+        _last_source = "none"
