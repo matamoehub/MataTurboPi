@@ -1,4 +1,5 @@
 # robot_controller_api.py — low-level TurboPi motor API (ROS2 direct motor control)
+import os
 import threading
 import time
 import rclpy
@@ -33,22 +34,34 @@ def _wait_for_subscribers(timeout_s: float = 3.0, poll_s: float = 0.05):
 
     ROS2 DDS discovery is async — without this wait the first message is
     published before the hardware node has matched, and the robot ignores it.
+
+    IMPORTANT: get_subscription_count() only updates when the node is spun.
+    We call spin_once() each iteration so DDS discovery events are processed.
+    This is why 'ros2 topic pub' works from the CLI (it spins its node) but
+    a plain publisher.publish() without spinning sees zero subscribers.
     """
+    import sys
     deadline = time.time() + timeout_s
     while time.time() < deadline:
+        rclpy.spin_once(_node, timeout_sec=poll_s)   # pump DDS discovery events
         if (_pub_speed.get_subscription_count() > 0 and
                 _pub_enable.get_subscription_count() > 0):
             return
-        time.sleep(poll_s)
     # Warn but don't raise — maybe it works anyway (e.g. in a test harness)
-    import sys
     print("[robot_controller_api] WARNING: publisher has no subscribers after "
           f"{timeout_s}s — motors may not respond.", file=sys.stderr)
 
 def _ensure():
     global _node, _pub_speed, _pub_enable
     if not rclpy.ok():
-        rclpy.init(args=None)
+        # Read domain ID from environment — must match the hardware controller.
+        # ROS default is 0; student_robot_v2 may set ROS_DOMAIN_ID=12.
+        # Passing it explicitly here ensures the correct domain is used
+        # regardless of when the env var was set relative to this import.
+        domain_id = int(os.environ.get("ROS_DOMAIN_ID", "0"))
+        import sys
+        print(f"[robot_controller_api] init on ROS_DOMAIN_ID={domain_id}", file=sys.stderr)
+        rclpy.init(args=None, domain_id=domain_id)
 
     if _node is None:
         # keep node name stable (matches what you saw in ros2 node list)
