@@ -27,6 +27,24 @@ def _qos_rel(depth: int = 10) -> QoSProfile:
         depth=depth,
     )
 
+def _wait_for_subscribers(timeout_s: float = 3.0, poll_s: float = 0.05):
+    """
+    Block until both publishers have at least one subscriber, or timeout.
+
+    ROS2 DDS discovery is async — without this wait the first message is
+    published before the hardware node has matched, and the robot ignores it.
+    """
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if (_pub_speed.get_subscription_count() > 0 and
+                _pub_enable.get_subscription_count() > 0):
+            return
+        time.sleep(poll_s)
+    # Warn but don't raise — maybe it works anyway (e.g. in a test harness)
+    import sys
+    print("[robot_controller_api] WARNING: publisher has no subscribers after "
+          f"{timeout_s}s — motors may not respond.", file=sys.stderr)
+
 def _ensure():
     global _node, _pub_speed, _pub_enable
     if not rclpy.ok():
@@ -37,6 +55,10 @@ def _ensure():
         _node = Node("robot_controller_api")
         _pub_speed  = _node.create_publisher(MotorsSpeedControl, TOPIC_SPEED, _qos_rel())
         _pub_enable = _node.create_publisher(Bool, TOPIC_ENABLE, _qos_rel())
+        # Wait for DDS peer discovery — without this the first publish is
+        # dropped because the hardware subscriber hasn't matched yet.
+        # Command-line ros2 topic pub works because discovery already happened.
+        _wait_for_subscribers()
 
 def enable_motors(on: bool = True, settle_s: float = 0.05):
     _ensure()
