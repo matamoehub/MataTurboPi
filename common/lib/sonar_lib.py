@@ -33,8 +33,13 @@ from ros_service_client import (
 )
 
 # ── I2C configuration ─────────────────────────────────────────────────────────
-# Hiwonder sonar module sits at 0x77 on bus 1.
-# Readings are 2 bytes big-endian starting at register 0x01, unit: mm.
+# SONAR_I2C_ENABLED must be explicitly set to "1" to use direct I2C.
+# Default is disabled because address 0x77 on TurboPi is the IR obstacle
+# sensor, not the sonar.  The sonar goes through the MCU and is only
+# accessible via the ROS topic (sonar_controller).
+# Only enable if you have confirmed the correct I2C address for your hardware
+# using scripts/i2c_sonar_probe.py.
+_I2C_ENABLED = os.environ.get("SONAR_I2C_ENABLED", "0").strip() == "1"
 _I2C_BUS  = int(os.environ.get("SONAR_I2C_BUS",  "1"))
 _I2C_ADDR = int(os.environ.get("SONAR_I2C_ADDR", "0x77"), 16)
 _I2C_REG  = int(os.environ.get("SONAR_I2C_REG",  "0x01"), 16)
@@ -105,6 +110,8 @@ def _filtered_mean(samples: List[int]) -> float:
 
 def _read_i2c_raw() -> Optional[int]:
     """One synchronous I2C read (~1 ms).  Returns mm, or None on any error."""
+    if not _I2C_ENABLED:
+        return None
     if not _smbus2_ok():
         return None
     try:
@@ -125,8 +132,8 @@ def get_distance_mm(use_cache: bool = True) -> Optional[int]:
     """
     Return the current sonar distance in mm, or None if unavailable.
 
-    Tries I2C first (< 1 ms, no ROS dependency).  Falls back to the ROS
-    subscriber if I2C is unavailable (wrong bus/addr, smbus2 missing, etc.).
+    Uses ROS subscriber by default.  If SONAR_I2C_ENABLED=1, tries I2C first
+    (< 1 ms, no ROS dependency) then falls back to the ROS subscriber.
 
     Results are cached for _I2C_CACHE_TTL_S (default 50 ms) to avoid
     hammering the I2C bus on rapid successive calls.
