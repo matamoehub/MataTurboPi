@@ -2,11 +2,19 @@
 """
 sonar_lib — Ultrasonic / sonar distance reader.
 
-Primary:  direct I2C  (smbus2, bus 1, addr 0x77, reg 0x01, 2-byte big-endian mm)
+Primary:  direct I2C  (smbus2, bus 1, addr 0x77, Hiwonder trigger-then-read protocol)
 Fallback: ROS2 topic  (/sonar_controller/get_distance)
 
 The I2C path reads in ~1 ms with no ROS dependency, so the sonar works even
 when sonar_controller is restarting or the ROS graph is degraded.
+
+Hiwonder sonar I2C protocol (confirmed 2026-05-29):
+  - Write trigger byte [0x00] to address 0x77  (starts measurement)
+  - Read 2 bytes from address 0x77
+  - Interpret as little-endian unsigned mm
+  - Values > 5000 mm are clamped to 5000 mm by the hardware
+  NOTE: the old read_i2c_block_data(0x77, 0x01, 2) big-endian method reads
+  stale register bytes and does NOT trigger a measurement — always wrong.
 
 Quick start (new API):
     from sonar_lib import get_distance_cm
@@ -17,7 +25,7 @@ Backward-compatible API still works:
     sonar = get_sonar()
     print(sonar.get_distance_cm())
 """
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 import os
 import threading
@@ -33,18 +41,14 @@ from ros_service_client import (
 )
 
 # ── I2C configuration ─────────────────────────────────────────────────────────
-# SONAR_I2C_ENABLED must be explicitly set to "1" to use direct I2C.
-# Default is disabled because address 0x77 on TurboPi is the IR obstacle
-# sensor, not the sonar.  The sonar goes through the MCU and is only
-# accessible via the ROS topic (sonar_controller).
-# Only enable if you have confirmed the correct I2C address for your hardware
-# using scripts/i2c_sonar_probe.py.
-_I2C_ENABLED = os.environ.get("SONAR_I2C_ENABLED", "0").strip() == "1"
+# On TurboPi the Hiwonder sonar+RGB module is at I2C address 0x77 on bus 1.
+# Protocol: write trigger byte [0x00], read 2 bytes little-endian mm.
+# Set SONAR_I2C_ENABLED=0 to disable and fall back to the ROS topic.
+_I2C_ENABLED = os.environ.get("SONAR_I2C_ENABLED", "1").strip() != "0"
 _I2C_BUS  = int(os.environ.get("SONAR_I2C_BUS",  "1"))
 _I2C_ADDR = int(os.environ.get("SONAR_I2C_ADDR", "0x77"), 16)
-_I2C_REG  = int(os.environ.get("SONAR_I2C_REG",  "0x01"), 16)
 _I2C_MIN_MM = 20    # sensor floor — below this the reading is noise
-_I2C_MAX_MM = 4000  # sensor ceiling (4 m)
+_I2C_MAX_MM = 5000  # hardware ceiling (Hiwonder SDK clamps at 5000 mm)
 
 # Rate-limit cache: avoids hammering the I2C bus on rapid successive calls.
 # 50 ms → ~20 reads/s max.  Set SONAR_I2C_CACHE_TTL_S=0 to disable.
@@ -109,16 +113,26 @@ def _filtered_mean(samples: List[int]) -> float:
 
 
 def _read_i2c_raw() -> Optional[int]:
-    """One synchronous I2C read (~1 ms).  Returns mm, or None on any error."""
+    """One synchronous Hiwonder-protocol I2C read.  Returns mm, or None on error.
+
+    Protocol: write trigger byte [0x00] to start measurement, then read 2 bytes
+    as little-endian unsigned mm.  This matches sdk/sonar.py exactly.
+    """
     if not _I2C_ENABLED:
         return None
     if not _smbus2_ok():
         return None
     try:
-        from smbus2 import SMBus
+        from smbus2 import SMBus, i2c_msg
         with SMBus(_I2C_BUS) as bus:
-            raw = bus.read_i2c_block_data(_I2C_ADDR, _I2C_REG, 2)
-            mm = (raw[0] << 8) | raw[1]
+            # Trigger measurement
+            bus.i2c_rdwr(i2c_msg.write(_I2C_ADDR, [0x00]))
+            # Read 2-byte little-endian result
+            read = i2c_msg.read(_I2C_ADDR, 2)
+            bus.i2c_rdwr(read)
+            mm = int.from_bytes(bytes(list(read)), byteorder='little', signed=False)
+            if mm > 5000:
+                mm = 5000
             if _I2C_MIN_MM <= mm <= _I2C_MAX_MM:
                 return mm
     except Exception:
