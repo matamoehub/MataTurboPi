@@ -25,7 +25,7 @@ Backward-compatible API still works:
     sonar = get_sonar()
     print(sonar.get_distance_cm())
 """
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 import os
 import threading
@@ -115,8 +115,10 @@ def _filtered_mean(samples: List[int]) -> float:
 def _read_i2c_raw() -> Optional[int]:
     """One synchronous Hiwonder-protocol I2C read.  Returns mm, or None on error.
 
-    Protocol: write trigger byte [0x00] to start measurement, then read 2 bytes
-    as little-endian unsigned mm.  This matches sdk/sonar.py exactly.
+    Protocol: write trigger byte [0x00] to start measurement, wait 3 ms for the
+    MCU to complete the ultrasonic cycle, then read 2 bytes as little-endian mm.
+    This matches sdk/sonar.py but adds the settle delay to avoid the "26 cm /
+    25.5 cm" sentinel (0x00FF) the MCU outputs while mid-measurement.
     """
     if not _I2C_ENABLED:
         return None
@@ -125,8 +127,15 @@ def _read_i2c_raw() -> Optional[int]:
     try:
         from smbus2 import SMBus, i2c_msg
         with SMBus(_I2C_BUS) as bus:
-            # Trigger measurement
+            # Trigger measurement.  The sensor MCU resets its output register to
+            # an initialising sentinel (~255 mm = 0x00FF) while computing the new
+            # ultrasonic measurement.  Reading immediately would return that sentinel.
+            # A 3 ms settle time lets the sensor complete the measurement for targets
+            # up to ~50 cm.  For farther targets the sensor will have finished its
+            # *previous* cycle (triggered 50 ms ago by the cache TTL), so we still
+            # get a fresh real value.
             bus.i2c_rdwr(i2c_msg.write(_I2C_ADDR, [0x00]))
+            time.sleep(0.003)   # 3 ms: avoids reading during MCU reset window
             # Read 2-byte little-endian result
             read = i2c_msg.read(_I2C_ADDR, 2)
             bus.i2c_rdwr(read)
@@ -273,15 +282,24 @@ class Sonar(Node):  # type: ignore[misc]
     def has_reading(self) -> bool:
         return self._last_mm is not None
 
-    def wait_for_reading(self, timeout_s: float = 2.0) -> int:
+    def wait_for_reading(
+        self, timeout_s: float = 2.0, max_age_s: float = 5.0
+    ) -> Optional[int]:
+        """Wait up to *timeout_s* for a reading no older than *max_age_s*.
+
+        Returns the distance in mm, or None if no fresh reading arrives in time.
+
+        The age guard prevents returning a stale cached value from a previous
+        sonar_controller run — the common cause of the "stuck at 26 cm" symptom
+        (sonar_controller publishes once, crashes, and _last_mm never updates).
+        """
         end = time.time() + float(timeout_s)
         while time.time() < end:
-            if self._last_mm is not None:
-                return int(self._last_mm)
+            if self._last_mm is not None and self._last_at is not None:
+                if (time.time() - self._last_at) <= max_age_s:
+                    return int(self._last_mm)
             time.sleep(0.02)
-        raise TimeoutError(
-            f"No sonar reading received from {self.topic} within {timeout_s}s"
-        )
+        return None  # no fresh reading within timeout
 
     def get_distance_mm(self, filtered: bool = False) -> int:
         if filtered and self._samples:
