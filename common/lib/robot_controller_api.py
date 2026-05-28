@@ -1,4 +1,6 @@
 # robot_controller_api.py — low-level TurboPi motor API (ROS2 direct motor control)
+__version__ = "1.1.0"  # threading stop-event + DDS discovery wait with spin_once
+
 import os
 import threading
 import time

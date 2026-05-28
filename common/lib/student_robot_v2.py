@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.4.2"
+__version__ = "2.4.3"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -950,6 +950,7 @@ class RobotV2:
         modules = [
             ("student_robot_moves", self._student_moves),
             ("robot_moves", self._rm),
+            ("robot_controller_api", self._import("robot_controller_api")),
             ("eyes_lib", self._import("eyes_lib")),
             ("camera_lib", self._import("camera_lib")),
             ("tts_lib", self._tts_backend),
