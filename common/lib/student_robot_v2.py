@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.4.3"
+__version__ = "2.4.4"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -544,21 +544,48 @@ class SonarNamespace(_BackendProxy):
     def _get_backend(self):
         return self._owner._sonar_backend
 
+    def _lib(self):
+        """Return the sonar_lib module (stored on owner after _ensure_backends)."""
+        self._owner._ensure_backends()
+        return self._owner._sonar_lib
+
     def wait(self, timeout_s: float = 2.0):
+        """Return a fresh distance reading in mm, blocking up to timeout_s."""
+        lib = self._lib()
+        if lib is not None and hasattr(lib, "get_distance_mm"):
+            # I2C primary: read is ~1 ms, no blocking needed.
+            mm = lib.get_distance_mm(use_cache=False)
+            if mm is not None:
+                return int(mm)
+        # Fallback: ROS subscriber blocks until a message arrives.
         backend = self._ensure()
         return int(backend.wait_for_reading(timeout_s=timeout_s))
 
     def distance_cm(self, filtered: bool = True):
+        lib = self._lib()
+        if lib is not None and hasattr(lib, "get_distance_cm"):
+            val = lib.get_distance_cm()
+            return int(val or 0)
         backend = self._ensure()
         return int(backend.get_distance_cm(filtered=filtered) or 0)
 
     def distance_mm(self, filtered: bool = True):
+        lib = self._lib()
+        if lib is not None and hasattr(lib, "get_distance_mm"):
+            val = lib.get_distance_mm()
+            return int(val or 0)
         backend = self._ensure()
         return int(backend.get_distance_mm(filtered=filtered) or 0)
 
     def is_closer_than(self, threshold_cm: float, filtered: bool = True):
-        backend = self._ensure()
-        return backend.is_closer_than(threshold_cm=threshold_cm, filtered=filtered)
+        return self.distance_cm() <= float(threshold_cm)
+
+    def source(self) -> str:
+        """Return 'i2c', 'ros', or 'none' — how the last reading was obtained."""
+        lib = self._lib()
+        if lib is not None and hasattr(lib, "last_source"):
+            return lib.last_source()
+        return "ros"
 
 
 class InfraredNamespace(_BackendProxy):
@@ -616,6 +643,7 @@ class RobotV2:
         self._camera_backend = None
         self._tts_backend = None
         self._buzzer_backend = None
+        self._sonar_lib = None
         self._sonar_backend = None
         self._vision_backend = None
         self._infrared_backend = None
@@ -779,9 +807,11 @@ class RobotV2:
                 except Exception as e:
                     self._errors["buzzer_lib"] = str(e)
 
-        if self._sonar_backend is None:
+        if self._sonar_lib is None:
             sonar_lib = self._import("sonar_lib")
             if sonar_lib is not None:
+                self._sonar_lib = sonar_lib
+                # Also spin up the ROS subscriber so it warms as a fallback.
                 try:
                     self._sonar_backend = sonar_lib.get_sonar()
                 except Exception as e:
