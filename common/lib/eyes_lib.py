@@ -1,6 +1,21 @@
-__version__ = "1.1.2"
+__version__ = "2.0.0"
 
 # eyes_lib.py
+"""RGB eye LED control for Hiwonder TurboPi.
+
+Backend priority (auto mode):
+  1. I2C direct  — smbus2 → addr 0x77 registers 3-8 (fastest, no ROS needed)
+  2. HTTP        — local eyes_controller service at port 8766
+  3. ROS         — publish RGBStates to /sonar_controller/set_rgb
+
+The I2C path writes directly to the Hiwonder sonar+RGB module (same device as
+the sonar, different registers):
+  LED 0: reg 3 (R), reg 4 (G), reg 5 (B)
+  LED 1: reg 6 (R), reg 7 (G), reg 8 (B)
+
+Set EYES_I2C_ENABLED=0 to skip I2C and use HTTP/ROS instead.
+Set EYES_BACKEND=ros  to force the ROS path (useful on non-Pi dev machines).
+"""
 import atexit
 import json
 import os
@@ -10,7 +25,13 @@ import urllib.error
 import urllib.request
 from typing import List, Optional, Tuple
 
-from ros_robot_controller_msgs.msg import RGBState, RGBStates
+try:
+    from ros_robot_controller_msgs.msg import RGBState, RGBStates
+    _ROS_MSGS_OK = True
+except Exception:
+    RGBState = None   # type: ignore[assignment,misc]
+    RGBStates = None  # type: ignore[assignment,misc]
+    _ROS_MSGS_OK = False
 
 ENV_TOPIC = os.getenv("EYES_TOPIC", "").strip()
 EYES_BACKEND = os.getenv("EYES_BACKEND", "auto").strip().lower() or "auto"
@@ -24,15 +45,65 @@ CANDIDATE_TOPICS = [
 
 DEFAULT_INDICES = (0, 1)
 
-# How long to spin after each publish. This is what makes notebooks reliable.
+# How long to spin after each ROS publish so messages actually go out in notebooks.
 FLUSH_SPIN_S = float(os.getenv("EYES_FLUSH_SPIN_S", "0.15"))
-# Optional small pause (usually not needed)
 FLUSH_PAUSE_S = float(os.getenv("EYES_FLUSH_PAUSE_S", "0.00"))
 
+# ── I2C configuration ─────────────────────────────────────────────────────────
+# The Hiwonder sonar+RGB module at 0x77 has two RGB LEDs.
+# Protocol: plain write_byte_data — no trigger needed, unlike sonar reads.
+# Set EYES_I2C_ENABLED=0 to skip I2C and fall through to HTTP/ROS.
+_I2C_ENABLED = os.environ.get("EYES_I2C_ENABLED", "1").strip() != "0"
+_I2C_BUS     = int(os.environ.get("EYES_I2C_BUS",  "1"))
+_I2C_ADDR    = int(os.environ.get("EYES_I2C_ADDR", "0x77"), 16)
+# LED index → first R register; G = reg+1, B = reg+2
+_I2C_LED_REG: dict = {0: 3, 1: 6}
+
+_smbus2_available: Optional[bool] = None
+
+
+def _smbus2_ok() -> bool:
+    global _smbus2_available
+    if _smbus2_available is None:
+        try:
+            import smbus2  # noqa: F401
+            _smbus2_available = True
+        except ImportError:
+            _smbus2_available = False
+    return bool(_smbus2_available)
+
+
+def _i2c_write_pixel(index: int, r: int, g: int, b: int) -> bool:
+    """Write one RGB LED via direct I2C.  Returns True on success.
+
+    Uses write_byte_data (register-addressed) — three separate byte writes,
+    matching the Hiwonder SDK's setPixelColor() exactly.
+    """
+    if not _I2C_ENABLED or not _smbus2_ok():
+        return False
+    reg = _I2C_LED_REG.get(index)
+    if reg is None:
+        return False
+    try:
+        from smbus2 import SMBus
+        with SMBus(_I2C_BUS) as bus:
+            bus.write_byte_data(_I2C_ADDR, reg,     r & 0xFF)
+            bus.write_byte_data(_I2C_ADDR, reg + 1, g & 0xFF)
+            bus.write_byte_data(_I2C_ADDR, reg + 2, b & 0xFF)
+        return True
+    except Exception:
+        return False
+
+
+def _i2c_available() -> bool:
+    """Probe I2C: try writing black to LED 0.  Returns True if it works."""
+    return _i2c_write_pixel(0, 0, 0, 0)
+
+
+# ── HTTP controller helpers ───────────────────────────────────────────────────
 
 def _qos_rel():
     from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
-
     return QoSProfile(
         reliability=QoSReliabilityPolicy.RELIABLE,
         history=QoSHistoryPolicy.KEEP_LAST,
@@ -42,12 +113,11 @@ def _qos_rel():
 
 def _rclpy_init_once() -> None:
     import rclpy
-
     if not rclpy.ok():
         rclpy.init(args=None)
 
 
-def _controller_health(url: str) -> tuple[bool, str]:
+def _controller_health(url: str) -> tuple:
     try:
         req = urllib.request.Request(f"{url}/health", method="GET")
         with urllib.request.urlopen(req, timeout=EYES_CONTROLLER_TIMEOUT_S) as resp:
@@ -73,16 +143,17 @@ def _controller_post(url: str, payload: dict) -> None:
         raise RuntimeError(f"controller_rejected:{body}")
 
 
+# ── Eyes class ────────────────────────────────────────────────────────────────
+
 class Eyes:
-    """Simple RGB eye helper.
+    """RGB eye helper.
 
-    Preferred path:
-    - Send commands to the local eyes_controller service, which keeps robot eye
-      control out of the student kernel and uses one supervised ROS publisher.
+    Backend selection (EYES_BACKEND=auto, default):
+      1. I2C direct   — fastest, no ROS dependency
+      2. HTTP service — local eyes_controller at port 8766
+      3. ROS publish  — direct RGBStates publish (slowest, ROS required)
 
-    Fallback path:
-    - Publish ros_robot_controller_msgs/RGBStates to the sonar/controller RGB
-      topic and flush a local executor so messages actually go out.
+    Force a specific backend with EYES_BACKEND=i2c|controller|ros.
     """
 
     def __init__(
@@ -91,7 +162,7 @@ class Eyes:
         indices: Tuple[int, int] = DEFAULT_INDICES,
         node_name: str = "eyes_rgb_client",
     ):
-        self.left_i = int(indices[0])
+        self.left_i  = int(indices[0])
         self.right_i = int(indices[1])
         self.topic = topic or ENV_TOPIC or CANDIDATE_TOPICS[0]
         self.backend_reason = ""
@@ -99,21 +170,42 @@ class Eyes:
         self._ros_node = None
         self._exec = None
         self.pub = None
+        self.backend = "ros"  # default, overwritten below
 
-        self.backend = "ros"
-        if EYES_BACKEND != "ros":
-            ok, reason = _controller_health(self.controller_url)
-            if ok:
-                self.backend = "controller"
-                self.backend_reason = reason
-            elif EYES_BACKEND == "controller":
-                raise RuntimeError(reason)
-            else:
-                self.backend_reason = reason
-                self._init_ros_backend(topic=topic, node_name=node_name)
-        else:
+        forced = EYES_BACKEND  # "auto" | "i2c" | "controller" | "ros"
+
+        if forced == "ros":
             self.backend_reason = "ros_forced"
             self._init_ros_backend(topic=topic, node_name=node_name)
+
+        elif forced == "i2c":
+            if not _i2c_available():
+                raise RuntimeError("EYES_BACKEND=i2c but I2C probe failed")
+            self.backend = "i2c"
+            self.backend_reason = "i2c_forced"
+
+        elif forced == "controller":
+            ok, reason = _controller_health(self.controller_url)
+            if not ok:
+                raise RuntimeError(reason)
+            self.backend = "controller"
+            self.backend_reason = reason
+
+        else:  # auto
+            # 1. Try I2C direct
+            if _I2C_ENABLED and _smbus2_ok() and _i2c_available():
+                self.backend = "i2c"
+                self.backend_reason = f"i2c_direct:bus{_I2C_BUS}:addr{hex(_I2C_ADDR)}"
+            else:
+                # 2. Try HTTP controller
+                ok, reason = _controller_health(self.controller_url)
+                if ok:
+                    self.backend = "controller"
+                    self.backend_reason = reason
+                else:
+                    # 3. Fall back to ROS
+                    self.backend_reason = reason
+                    self._init_ros_backend(topic=topic, node_name=node_name)
 
         self._blink_thread: Optional[threading.Thread] = None
         self._blink_stop = threading.Event()
@@ -140,6 +232,7 @@ class Eyes:
 
         self._ros_node = node
         self._exec = executor
+        self.backend = "ros"
 
     def _auto_topic(self, node) -> str:
         try:
@@ -160,62 +253,63 @@ class Eyes:
         if FLUSH_PAUSE_S > 0:
             time.sleep(FLUSH_PAUSE_S)
 
-    def diagnose(self) -> None:
-        print("Backend:", self.backend)
-        print("Backend detail:", self.backend_reason)
-        if self.backend == "controller":
-            print("Controller URL:", self.controller_url)
-            print("Topic in use:", self.topic)
-            return
-        print("Topic in use:", self.topic)
-        if self._ros_node is None:
-            return
-        topics = self._ros_node.get_topic_names_and_types()
-        names = sorted([t[0] for t in topics])
-        print("Available RGB-like topics:")
-        for n in names:
-            if "rgb" in n.lower() or "led" in n.lower() or "sonar" in n.lower():
-                print(" -", n)
+    # ── Internal publish dispatch ─────────────────────────────────────────────
 
-    def _publish_states(self, states: List[RGBState]) -> None:
+    def _set_pixels(self, states: List[Tuple[int, int, int, int]]) -> None:
+        """Low-level dispatch.  states = list of (index, r, g, b) tuples."""
+        if self.backend == "i2c":
+            for idx, r, g, b in states:
+                _i2c_write_pixel(idx, r, g, b)
+            return
+
         if self.backend == "controller":
             _controller_post(
                 self.controller_url,
                 {
                     "states": [
-                        {
-                            "index": int(s.index),
-                            "red": int(s.red),
-                            "green": int(s.green),
-                            "blue": int(s.blue),
-                        }
-                        for s in states
+                        {"index": idx, "red": r, "green": g, "blue": b}
+                        for idx, r, g, b in states
                     ]
                 },
             )
             return
 
+        # ROS path
+        if RGBState is None or RGBStates is None:
+            raise RuntimeError("ROS messages not available; cannot publish")
         msg = RGBStates()
-        msg.states = states
+        msg.states = [
+            RGBState(index=idx, red=r, green=g, blue=b)
+            for idx, r, g, b in states
+        ]
         self.pub.publish(msg)
         self._flush()
 
+    # Keep _publish_states for any internal callers that still pass RGBState objects
+    def _publish_states(self, states) -> None:
+        """Legacy internal path — accepts RGBState objects or (idx,r,g,b) tuples."""
+        if states and hasattr(states[0], "index"):
+            tuples = [(s.index, s.red, s.green, s.blue) for s in states]
+        else:
+            tuples = list(states)
+        self._set_pixels(tuples)
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
     def set_both(self, r: int, g: int, b: int) -> None:
-        self._publish_states(
-            [
-                RGBState(index=self.left_i, red=int(r), green=int(g), blue=int(b)),
-                RGBState(index=self.right_i, red=int(r), green=int(g), blue=int(b)),
-            ]
-        )
+        self._set_pixels([
+            (self.left_i,  int(r), int(g), int(b)),
+            (self.right_i, int(r), int(g), int(b)),
+        ])
 
     def set_left(self, r: int, g: int, b: int) -> None:
-        self._publish_states([RGBState(index=self.left_i, red=int(r), green=int(g), blue=int(b))])
+        self._set_pixels([(self.left_i, int(r), int(g), int(b))])
 
     def set_right(self, r: int, g: int, b: int) -> None:
-        self._publish_states([RGBState(index=self.right_i, red=int(r), green=int(g), blue=int(b))])
+        self._set_pixels([(self.right_i, int(r), int(g), int(b))])
 
     def set_index(self, idx: int, r: int, g: int, b: int) -> None:
-        self._publish_states([RGBState(index=int(idx), red=int(r), green=int(g), blue=int(b))])
+        self._set_pixels([(int(idx), int(r), int(g), int(b))])
 
     def off(self) -> None:
         try:
@@ -250,6 +344,27 @@ class Eyes:
             self.set_index(i, 0, 0, 0)
             time.sleep(0.05)
 
+    def diagnose(self) -> None:
+        print("Backend:", self.backend)
+        print("Backend detail:", self.backend_reason)
+        if self.backend == "i2c":
+            print(f"I2C bus={_I2C_BUS} addr={hex(_I2C_ADDR)}")
+            print(f"  LED 0 regs: R={_I2C_LED_REG[0]} G={_I2C_LED_REG[0]+1} B={_I2C_LED_REG[0]+2}")
+            print(f"  LED 1 regs: R={_I2C_LED_REG[1]} G={_I2C_LED_REG[1]+1} B={_I2C_LED_REG[1]+2}")
+            return
+        if self.backend == "controller":
+            print("Controller URL:", self.controller_url)
+            return
+        print("Topic in use:", self.topic)
+        if self._ros_node is None:
+            return
+        topics = self._ros_node.get_topic_names_and_types()
+        names = sorted([t[0] for t in topics])
+        print("Available RGB-like topics:")
+        for n in names:
+            if "rgb" in n.lower() or "led" in n.lower() or "sonar" in n.lower():
+                print(" -", n)
+
     def close(self) -> None:
         try:
             self.off()
@@ -264,6 +379,8 @@ class Eyes:
         self._exec = None
         self.pub = None
 
+
+# ── Module-level singleton ────────────────────────────────────────────────────
 
 _EYES_SINGLETON: Optional[Eyes] = None
 
