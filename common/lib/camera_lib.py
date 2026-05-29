@@ -1,6 +1,8 @@
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 # camera_lib.py
+import os
+import sys
 import time
 from typing import Optional
 import rclpy
@@ -10,7 +12,8 @@ from ros_robot_controller_msgs.msg import SetPWMServoState, PWMServoState
 # ---------- ROS init helper ----------
 def _rclpy_init_once():
     if not rclpy.ok():
-        rclpy.init(args=None)
+        domain_id = int(os.environ.get("ROS_DOMAIN_ID", "0"))
+        rclpy.init(args=None, domain_id=domain_id)
 
 # ---------- Camera node ----------
 class Camera(Node):
@@ -38,11 +41,22 @@ class Camera(Node):
             SetPWMServoState, "ros_robot_controller/pwm_servo/set_state", 10
         )
         self.nod_id = int(nod_id)
+        self._wait_for_subscriber()
         self.shake_id = int(shake_id)
         self.center = int(center)
         self.speed_s = float(speed_s)
         self.min_pos = int(min_pos)
         self.max_pos = int(max_pos)
+
+    def _wait_for_subscriber(self, timeout_s: float = 3.0, poll_s: float = 0.05):
+        """Spin until the servo controller has matched, or timeout."""
+        deadline = time.time() + timeout_s
+        while time.time() < deadline:
+            rclpy.spin_once(self, timeout_sec=poll_s)
+            if self.pub.get_subscription_count() > 0:
+                return
+        print("[camera_lib] WARNING: servo publisher has no subscribers after "
+              f"{timeout_s}s — camera may not move.", file=sys.stderr)
 
     # ------------ low-level ------------
     def _clamp(self, pos: int) -> int:
