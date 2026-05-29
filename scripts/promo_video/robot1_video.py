@@ -17,101 +17,133 @@ print("2..."); time.sleep(1)
 print("1..."); time.sleep(1)
 print("GO!")
 
-# ── INTRO ────────────────────────────────────────────────────────────────────
+# ── INTRO — warm greeting ─────────────────────────────────────────────────────
 myRobot.eyes.off()
 time.sleep(0.5)
-myRobot.eyes.color(0, 255, 200)
-myRobot.anim.start_blinking(every_s=3.0, blank_s=0.3)
+myRobot.eyes.color(0, 200, 150)            # soft teal — waking up
 myRobot.camera.center()
+time.sleep(0.4)
+myRobot.eyes.color(0, 255, 200)            # full bright teal
+myRobot.anim.start_blinking(every_s=3.0, blank_s=0.3)
+
+myRobot.camera.nod(depth=180)
+myRobot.voice.say("Key ora. I am Toni.", block=True)
+myRobot.camera.wiggle(cycles=1, amplitude=100)   # little greeting wiggle
 time.sleep(0.3)
 
-myRobot.camera.nod(depth=150)
-myRobot.voice.say("Key ora. I am Toni.", block=True)
-time.sleep(0.4)
-
-# ── LEAGUE DESCRIPTION ───────────────────────────────────────────────────────
+# ── LEAGUE NAME — proud, look at audience ────────────────────────────────────
+myRobot.eyes.color(0, 180, 255)            # blue — official / proud
 myRobot.camera.nod(depth=150)
 myRobot.voice.say("Welcome to the Po Knee key AI Robot League.", block=True)
-time.sleep(0.2)
-myRobot.voice.say("A free after-school programme for Wellington secondary school students,", block=True)
-myRobot.camera.glance_left(amplitude=150, hold_s=0.3)
-myRobot.voice.say("run by Mata moe E, based at Scots College.", block=True)
-time.sleep(0.3)
-
-myRobot.camera.glance_right(amplitude=200, hold_s=0.4)
-myRobot.anim.stop_blinking()
-myRobot.eyes.color(0, 150, 255)
-myRobot.anim.start_blinking(every_s=3.0, blank_s=0.3)
-time.sleep(0.3)
-
-# ── WHAT YOU WILL LEARN ──────────────────────────────────────────────────────
-myRobot.camera.center()
-myRobot.voice.say("In this programme, you will explore robotics, coding, and artificial intelligence.", block=True)
-myRobot.camera.nod(depth=150)
-time.sleep(0.3)
-
 myRobot.eyes.color(0, 255, 200)
+time.sleep(0.2)
+
+# ── WHAT IS IT — scan left and right like presenting ─────────────────────────
+myRobot.eyes.color(100, 220, 255)          # light cyan — informative
+myRobot.camera.glance_left(amplitude=180, hold_s=0.4)
+myRobot.voice.say("A free after-school programme for Wellington secondary school students,", block=True)
+myRobot.camera.glance_right(amplitude=180, hold_s=0.3)
+myRobot.voice.say("run by Mata moe E, based at Scots College.", block=True)
+myRobot.camera.center()
+time.sleep(0.3)
+
+# ── EXPLORE — excited, eyes shift colour ──────────────────────────────────────
+myRobot.anim.stop_blinking()
+myRobot.eyes.color(80, 0, 200)             # purple — curious / exciting
+myRobot.anim.start_blinking(every_s=2.5, blank_s=0.25)
+myRobot.camera.nod(depth=150)
+myRobot.voice.say("In this programme, you will explore robotics, coding, and artificial intelligence.", block=True)
+myRobot.camera.nod(depth=120)
+time.sleep(0.2)
+
+# ── CAPABILITIES — each one gets its own colour and look ─────────────────────
+myRobot.eyes.color(0, 255, 100)            # green — "can move"
 myRobot.voice.say("Our robots can move,", block=False)
-myRobot.camera.nod(depth=200)
-time.sleep(0.8)
+myRobot.move.forward(seconds=0.2, speed=150)
+myRobot.move.backward(seconds=0.2, speed=150)
+time.sleep(0.3)
+
+myRobot.eyes.color(255, 165, 0)            # orange — "recognise objects"
 myRobot.voice.say("recognise objects,", block=False)
-myRobot.camera.glance_left(amplitude=200, hold_s=0.3)
-time.sleep(0.8)
+myRobot.camera.glance_left(amplitude=220, hold_s=0.2)
+myRobot.camera.glance_right(amplitude=220, hold_s=0.2)
+myRobot.camera.center()
+time.sleep(0.3)
+
+myRobot.eyes.color(255, 50, 150)           # pink — "detect colours"
 myRobot.voice.say("and detect colours.", block=False)
-myRobot.camera.glance_right(amplitude=200, hold_s=0.3)
-time.sleep(0.8)
+for c in [(255,0,0),(0,255,0),(0,0,255),(255,50,150)]:
+    myRobot.eyes.color(*c)
+    time.sleep(0.18)
+time.sleep(0.2)
 
-# ── WELCOME MESSAGE ──────────────────────────────────────────────────────────
+# ── WELCOME — warm, open ──────────────────────────────────────────────────────
 myRobot.camera.center()
-myRobot.eyes.color(0, 200, 255)
 myRobot.anim.stop_blinking()
-myRobot.anim.start_blinking(every_s=2.0, blank_s=0.3)
+myRobot.eyes.color(255, 220, 0)            # warm gold — welcoming
+myRobot.anim.start_blinking(every_s=2.5, blank_s=0.3)
+myRobot.camera.nod(depth=160)
 myRobot.voice.say("No experience needed. Everyone is welcome.", block=True)
-myRobot.camera.nod(depth=150)
+myRobot.camera.wiggle(cycles=1, amplitude=120)
 time.sleep(0.3)
 
-myRobot.camera.glance_right(amplitude=150, hold_s=0.3)
-myRobot.camera.nod(depth=150)
-time.sleep(0.3)
-
-# ── CUE ROBOT 2 TO DRIFT ─────────────────────────────────────────────────────
+# ── GLANCE AT RYAN — conspiratorial ──────────────────────────────────────────
 myRobot.anim.stop_blinking()
+myRobot.eyes.color(0, 200, 255)            # sky blue — checking in
+myRobot.camera.glance_right(amplitude=200, hold_s=0.5)
+myRobot.camera.nod(depth=120)
+time.sleep(0.3)
+
+# ── CUE TO DRIFT — dramatic pause ────────────────────────────────────────────
+myRobot.eyes.color(255, 255, 255)          # white — spotlight moment
+myRobot.anim.start_blinking(every_s=1.2, blank_s=0.15)
 myRobot.camera.center()
-myRobot.eyes.color(255, 255, 255)
-time.sleep(0.4)
+time.sleep(0.5)
 
 myRobot.voice.say("Now.", block=True)
+myRobot.anim.stop_blinking()
+myRobot.eyes.off()
+time.sleep(0.4)
+myRobot.eyes.color(255, 255, 255)
 time.sleep(0.3)
 myRobot.voice.say("You may drift.", block=True)
 time.sleep(0.3)
 
-# ── ROBOT 1 MINI DANCE (while Robot 2 drifts) ────────────────────────────────
+# ── MINI DANCE — while Robot 2 drifts ────────────────────────────────────────
 myRobot.eyes.color(0, 255, 200)
 myRobot.anim.start_blinking(every_s=1.5, blank_s=0.2)
 
+myRobot.eyes.color(0, 255, 100)
 myRobot.move.forward(seconds=0.4, speed=200)
+myRobot.eyes.color(255, 100, 0)
 myRobot.move.backward(seconds=0.4, speed=200)
+myRobot.eyes.color(0, 100, 255)
 myRobot.move.left(seconds=0.3, speed=200)
+myRobot.eyes.color(200, 0, 255)
 myRobot.move.right(seconds=0.3, speed=200)
 myRobot.camera.wiggle(cycles=2, amplitude=150)
 
-for colour in [(0,255,200),(0,150,255),(128,0,128),(0,255,200)]:
+for colour in [(255,0,0),(255,165,0),(255,255,0),(0,255,0),(0,100,255),(128,0,200)]:
     myRobot.eyes.color(*colour)
-    time.sleep(0.4)
+    time.sleep(0.35)
 
+myRobot.eyes.color(255, 255, 255)
 myRobot.move.turn_left(seconds=0.4, speed=250)
+myRobot.eyes.color(0, 255, 200)
 myRobot.move.turn_right(seconds=0.4, speed=250)
-myRobot.camera.wiggle(cycles=2, amplitude=150)
+myRobot.camera.wiggle(cycles=2, amplitude=160)
 
 # wait while Robot 2 completes its drift sequence (~14 s)
 time.sleep(12.0)
 
-# ── SIGN OFF ─────────────────────────────────────────────────────────────────
+# ── SIGN OFF — calm, satisfied ────────────────────────────────────────────────
 myRobot.anim.stop_blinking()
-myRobot.eyes.color(0, 255, 200)
+myRobot.eyes.color(0, 200, 150)            # soft teal — settling
+time.sleep(0.3)
+myRobot.eyes.color(0, 255, 200)            # back to signature teal
 myRobot.camera.center()
-myRobot.camera.nod(depth=150)
-time.sleep(1.0)
+myRobot.camera.nod(depth=180)
+time.sleep(0.8)
 
 myRobot.move.stop()
 myRobot.eyes.off()
