@@ -26,16 +26,16 @@ myRobot.camera.center()
 time.sleep(0.3)
 
 myRobot.camera.nod(depth=150)
-myRobot.voice.say("Keeya ora. I am Toni.", block=True)
+myRobot.voice.say("Key ora. I am Toni.", block=True)
 time.sleep(0.4)
 
 # ── LEAGUE DESCRIPTION ───────────────────────────────────────────────────────
 myRobot.camera.nod(depth=150)
-myRobot.voice.say("Welcome to the Paw-neh-keh AI Robot League.", block=True)
+myRobot.voice.say("Welcome to the Po Knee key AI Robot League.", block=True)
 time.sleep(0.2)
 myRobot.voice.say("A free after-school programme for Wellington secondary school students,", block=True)
 myRobot.camera.glance_left(amplitude=150, hold_s=0.3)
-myRobot.voice.say("run by Mata-moe, based at Scots College.", block=True)
+myRobot.voice.say("run by Mata moe E, based at Scots College.", block=True)
 time.sleep(0.3)
 
 myRobot.camera.glance_right(amplitude=200, hold_s=0.4)
