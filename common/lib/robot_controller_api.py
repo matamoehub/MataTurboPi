@@ -1,5 +1,5 @@
 # robot_controller_api.py — low-level TurboPi motor API (ROS2 direct motor control)
-__version__ = "1.1.0"  # threading stop-event + DDS discovery wait with spin_once
+__version__ = "1.1.1"  # threading stop-event + DDS discovery wait with spin_once
 
 import os
 import threading
@@ -30,7 +30,7 @@ def _qos_rel(depth: int = 10) -> QoSProfile:
         depth=depth,
     )
 
-def _wait_for_subscribers(timeout_s: float = 3.0, poll_s: float = 0.05):
+def _wait_for_subscribers(timeout_s: float = 10.0, poll_s: float = 0.1):
     """
     Block until both publishers have at least one subscriber, or timeout.
 

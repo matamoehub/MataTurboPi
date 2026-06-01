@@ -1,4 +1,4 @@
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 # camera_lib.py
 import os
@@ -48,8 +48,9 @@ class Camera(Node):
         self.min_pos = int(min_pos)
         self.max_pos = int(max_pos)
 
-    def _wait_for_subscriber(self, timeout_s: float = 3.0, poll_s: float = 0.05):
-        """Spin until the servo controller has matched, or timeout."""
+    def _wait_for_subscriber(self, timeout_s: float = 10.0, poll_s: float = 0.1):
+        """Spin until the servo controller has matched, or timeout.
+        10s timeout handles slow ROS startup after reboot."""
         deadline = time.time() + timeout_s
         while time.time() < deadline:
             rclpy.spin_once(self, timeout_sec=poll_s)
@@ -159,9 +160,8 @@ def get_camera() -> Camera:
         _CAM_SINGLETON = Camera()
     return _CAM_SINGLETON
 
-# Optional auto-instance for notebooks
-try:
-    cam  # reuse if exists
-except NameError:
-    cam = get_camera()
-    print("camera_lib ready: cam.nod(), cam.shake(), cam.wiggle(), cam.tiny_wiggle(), cam.center_all(), cam.glance_left/right(), cam.look_up/down()")
+# NOTE: camera is NOT auto-created at import time.
+# It is created on first use via get_camera() or myRobot.camera.*
+# Early auto-init caused failures on reboot because the ROS servo
+# controller wasn't ready yet when the notebook first imported this module.
+print("camera_lib ready: cam.nod(), cam.shake(), cam.wiggle(), cam.tiny_wiggle(), cam.center_all(), cam.glance_left/right(), cam.look_up/down()")
