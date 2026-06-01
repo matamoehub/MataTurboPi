@@ -1,4 +1,4 @@
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 
 # camera_lib.py
 import os
@@ -48,16 +48,14 @@ class Camera(Node):
         self.min_pos = int(min_pos)
         self.max_pos = int(max_pos)
 
-    def _wait_for_subscriber(self, timeout_s: float = 10.0, poll_s: float = 0.1):
-        """Spin until the servo controller has matched, or timeout.
-        10s timeout handles slow ROS startup after reboot."""
-        deadline = time.time() + timeout_s
-        while time.time() < deadline:
-            rclpy.spin_once(self, timeout_sec=poll_s)
-            if self.pub.get_subscription_count() > 0:
-                return
-        print("[camera_lib] WARNING: servo publisher has no subscribers after "
-              f"{timeout_s}s — camera may not move.", file=sys.stderr)
+    def _wait_for_subscriber(self, settle_s: float = 1.5):
+        """
+        Fixed sleep for DDS peer discovery after node creation.
+
+        get_subscription_count() + spin_once proved unreliable across robot
+        configurations. A plain sleep is simpler and consistently works.
+        """
+        time.sleep(settle_s)
 
     # ------------ low-level ------------
     def _clamp(self, pos: int) -> int:

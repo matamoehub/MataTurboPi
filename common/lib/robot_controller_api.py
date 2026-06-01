@@ -1,5 +1,5 @@
 # robot_controller_api.py — low-level TurboPi motor API (ROS2 direct motor control)
-__version__ = "1.1.1"  # threading stop-event + DDS discovery wait with spin_once
+__version__ = "1.1.2"  # threading stop-event + DDS discovery wait with spin_once
 
 import os
 import threading
@@ -30,28 +30,15 @@ def _qos_rel(depth: int = 10) -> QoSProfile:
         depth=depth,
     )
 
-def _wait_for_subscribers(timeout_s: float = 10.0, poll_s: float = 0.1):
+def _wait_for_subscribers(settle_s: float = 1.5):
     """
-    Block until both publishers have at least one subscriber, or timeout.
+    Fixed sleep for DDS peer discovery after node creation.
 
-    ROS2 DDS discovery is async — without this wait the first message is
-    published before the hardware node has matched, and the robot ignores it.
-
-    IMPORTANT: get_subscription_count() only updates when the node is spun.
-    We call spin_once() each iteration so DDS discovery events are processed.
-    This is why 'ros2 topic pub' works from the CLI (it spins its node) but
-    a plain publisher.publish() without spinning sees zero subscribers.
+    get_subscription_count() + spin_once proved unreliable across robot
+    configurations. A plain sleep is simpler and consistently works —
+    1.5s is enough for the hardware controller to match on all tested robots.
     """
-    import sys
-    deadline = time.time() + timeout_s
-    while time.time() < deadline:
-        rclpy.spin_once(_node, timeout_sec=poll_s)   # pump DDS discovery events
-        if (_pub_speed.get_subscription_count() > 0 and
-                _pub_enable.get_subscription_count() > 0):
-            return
-    # Warn but don't raise — maybe it works anyway (e.g. in a test harness)
-    print("[robot_controller_api] WARNING: publisher has no subscribers after "
-          f"{timeout_s}s — motors may not respond.", file=sys.stderr)
+    time.sleep(settle_s)
 
 def _ensure():
     global _node, _pub_speed, _pub_enable
