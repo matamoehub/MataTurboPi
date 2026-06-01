@@ -1,4 +1,4 @@
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 # tts_lib.py
 # Piper TTS helper for Matamoe robots (Python 3.10)
@@ -27,7 +27,7 @@ VOICE_DIR = os.environ.get("PIPER_VOICE_DIR", os.path.expanduser("/opt/robot/pip
 
 VOICE_MAP = {
     "ryan": ("en_US-ryan-high.onnx", "en_US-ryan-high.onnx.json"),
-    "amy":  ("en_GB-amy-medium.onnx", "en_GB-amy-medium.onnx.json"),
+    "amy":  ("en_US-amy-medium.onnx", "en_US-amy-medium.onnx.json"),
     "aru":  ("en_GB-aru-medium.onnx", "en_GB-aru-medium.onnx.json"),
     # Add more voices you download into VOICE_DIR
 }
