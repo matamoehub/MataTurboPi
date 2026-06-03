@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.4.8"
+__version__ = "2.4.9"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -1069,10 +1069,14 @@ class RobotV2:
         # ── 4. Sonar ───────────────────────────────────────────────────────────
         try:
             cm = self.sonar.distance_cm()
-            if cm <= 0:
-                _fail("sonar", f"returned {cm} cm — check sensor")
+            if cm is None or cm <= 0:
+                _fail("sonar", "no reading — check sensor wiring")
+            elif cm >= 500:
+                _fail("sonar", f"{cm} cm — no echo (nothing in range or sensor fault)")
+            elif cm == 26 or cm == 25:
+                _fail("sonar", f"{cm} cm — sentinel value (0x00FF), sensor mid-measurement")
             elif cm > 300:
-                _fail("sonar", f"{cm} cm — unusually large, check sensor")
+                _fail("sonar", f"{cm} cm — unusually large, aim sensor at a nearby surface")
             else:
                 _pass("sonar", f"{cm} cm")
         except Exception as e:

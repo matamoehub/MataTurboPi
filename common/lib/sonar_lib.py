@@ -25,7 +25,7 @@ Backward-compatible API still works:
     sonar = get_sonar()
     print(sonar.get_distance_cm())
 """
-__version__ = "2.2.1"
+__version__ = "2.2.2"
 
 import os
 import threading
@@ -47,8 +47,10 @@ from ros_service_client import (
 _I2C_ENABLED = os.environ.get("SONAR_I2C_ENABLED", "1").strip() != "0"
 _I2C_BUS  = int(os.environ.get("SONAR_I2C_BUS",  "1"))
 _I2C_ADDR = int(os.environ.get("SONAR_I2C_ADDR", "0x77"), 16)
-_I2C_MIN_MM = 20    # sensor floor — below this the reading is noise
-_I2C_MAX_MM = 5000  # hardware ceiling (Hiwonder SDK clamps at 5000 mm)
+_I2C_MIN_MM      = 20    # sensor floor — below this the reading is noise
+_I2C_MAX_MM      = 4999  # anything >= 5000 mm is "no echo" (out of range)
+_I2C_SENTINEL_MM = 255   # 0x00FF — MCU mid-measurement placeholder, not a real reading
+_I2C_SETTLE_MS   = 20    # settle time after trigger; 20 ms covers targets up to ~340 cm
 
 # Rate-limit cache: avoids hammering the I2C bus on rapid successive calls.
 # 50 ms → ~20 reads/s max.  Set SONAR_I2C_CACHE_TTL_S=0 to disable.
@@ -115,10 +117,13 @@ def _filtered_mean(samples: List[int]) -> float:
 def _read_i2c_raw() -> Optional[int]:
     """One synchronous Hiwonder-protocol I2C read.  Returns mm, or None on error.
 
-    Protocol: write trigger byte [0x00] to start measurement, wait 10 ms for the
-    MCU to complete the ultrasonic cycle, then read 2 bytes as little-endian mm.
-    This matches sdk/sonar.py but adds the settle delay to avoid the "26 cm /
-    25.5 cm" sentinel (0x00FF) the MCU outputs while mid-measurement.
+    Two known bad values are filtered and retried:
+      - 255 mm (0x00FF): MCU sentinel while mid-measurement. Caused by the
+        10 ms settle being too short when sonar_controller fires its own
+        trigger during our sleep window. We now use 20 ms and retry once.
+      - 5000 mm: hardware ceiling returned when no echo is received (nothing
+        in range). Not a real distance — returned as None so callers can
+        distinguish "out of range" from a real reading.
     """
     if not _I2C_ENABLED:
         return None
@@ -127,32 +132,33 @@ def _read_i2c_raw() -> Optional[int]:
     try:
         from smbus2 import SMBus, i2c_msg
         with SMBus(_I2C_BUS) as bus:
-            # Trigger measurement.  The sensor MCU resets its output register to
-            # an initialising sentinel (~255 mm = 0x00FF) while computing the new
-            # ultrasonic measurement.  Reading immediately would return that sentinel.
-            # A 3 ms settle time lets the sensor complete the measurement for targets
-            # up to ~50 cm.  For farther targets the sensor will have finished its
-            # *previous* cycle (triggered 50 ms ago by the cache TTL), so we still
-            # get a fresh real value.
-            bus.i2c_rdwr(i2c_msg.write(_I2C_ADDR, [0x00]))
-            # 10 ms settle time.  Two reasons:
-            #   1. The MCU resets its output register to the sentinel (255 mm =
-            #      0x00FF) while computing; reading immediately returns that value.
-            #      10 ms clears this for targets up to ~170 cm.  For farther targets
-            #      the sensor will have finished its *previous* cycle, so we still
-            #      get a valid reading.
-            #   2. sonar_controller also writes [0x00] every 100 ms.  If it fires
-            #      during our sleep the sensor re-triggers (race).  A wider window
-            #      gives the re-triggered measurement time to complete.
-            time.sleep(0.010)   # 10 ms: safe settle for typical classroom distances
-            # Read 2-byte little-endian result
-            read = i2c_msg.read(_I2C_ADDR, 2)
-            bus.i2c_rdwr(read)
-            mm = int.from_bytes(bytes(list(read)), byteorder='little', signed=False)
-            if mm > 5000:
-                mm = 5000
-            if _I2C_MIN_MM <= mm <= _I2C_MAX_MM:
-                return mm
+            for attempt in range(2):
+                # Trigger a new measurement.
+                bus.i2c_rdwr(i2c_msg.write(_I2C_ADDR, [0x00]))
+                # Settle time: 20 ms covers targets up to ~340 cm and gives
+                # enough margin if sonar_controller fires mid-sleep and
+                # re-triggers the MCU (the re-triggered cycle also needs ~20 ms).
+                time.sleep(_I2C_SETTLE_MS / 1000.0)
+                # Read 2-byte little-endian result.
+                read = i2c_msg.read(_I2C_ADDR, 2)
+                bus.i2c_rdwr(read)
+                mm = int.from_bytes(bytes(list(read)), byteorder='little', signed=False)
+
+                # 5000 mm = hardware "no echo" ceiling — nothing in range.
+                if mm >= 5000:
+                    return None
+
+                # 255 mm = 0x00FF sentinel — MCU mid-measurement placeholder.
+                # Retry once with an extra 20 ms settle.
+                if mm == _I2C_SENTINEL_MM:
+                    if attempt == 0:
+                        time.sleep(_I2C_SETTLE_MS / 1000.0)
+                        continue
+                    return None   # still sentinel after retry — give up
+
+                if _I2C_MIN_MM <= mm <= _I2C_MAX_MM:
+                    return mm
+
     except Exception:
         pass
     return None
