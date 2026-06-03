@@ -1,4 +1,4 @@
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 
 # eyes_lib.py
 """RGB eye LED control for Hiwonder TurboPi.
@@ -209,6 +209,10 @@ class Eyes:
 
         self._blink_thread: Optional[threading.Thread] = None
         self._blink_stop = threading.Event()
+        # Lock so blink thread and main thread can't interleave LED writes.
+        # Without this, set_both() writes LED 0 then LED 1 separately — the
+        # blink thread can slip in between and leave one eye on, one eye off.
+        self._write_lock = threading.Lock()
 
         atexit.register(self.off)
         print(
@@ -256,11 +260,17 @@ class Eyes:
     # ── Internal publish dispatch ─────────────────────────────────────────────
 
     def _set_pixels(self, states: List[Tuple[int, int, int, int]]) -> None:
-        """Low-level dispatch.  states = list of (index, r, g, b) tuples."""
-        if self.backend == "i2c":
-            for idx, r, g, b in states:
-                _i2c_write_pixel(idx, r, g, b)
-            return
+        """Low-level dispatch.  states = list of (index, r, g, b) tuples.
+
+        Held under _write_lock so multi-LED updates (e.g. set_both) are
+        atomic — the blink thread cannot slip in between the two I2C writes
+        and leave one eye on and one eye off.
+        """
+        with self._write_lock:
+            if self.backend == "i2c":
+                for idx, r, g, b in states:
+                    _i2c_write_pixel(idx, r, g, b)
+                return
 
         if self.backend == "controller":
             _controller_post(
