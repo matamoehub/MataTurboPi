@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.4.7"
+__version__ = "2.4.8"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -1004,6 +1004,131 @@ class RobotV2:
         for name in sorted(self.versions()):
             print(f"{name}: {self.versions()[name]}")
 
+    def diagnose(self, speed: float = 200.0) -> dict:
+        """
+        Full hardware diagnostic — run before every class to confirm the
+        robot is ready.
+
+        Tests (in order):
+          1. motors   — forward 0.2s + backward 0.2s
+          2. eyes     — flash green, restore teal
+          3. camera   — nod + wiggle + center
+          4. sonar    — read distance, flag if 0 or >300 cm
+          5. vision   — capture a frame
+          6. voice    — say "Ready."
+          7. buzzer   — short confirmation beep
+
+        Returns dict of {test_name: {"ok": bool, "detail": str}}.
+        Prints a formatted pass/fail table to stdout.
+        """
+        import os, time as _time
+
+        results: dict = {}
+
+        def _pass(name: str, detail: str):
+            results[name] = {"ok": True, "detail": detail}
+
+        def _fail(name: str, detail: str):
+            results[name] = {"ok": False, "detail": detail}
+
+        W = 44
+        print("=" * W)
+        print("  ROBOT DIAGNOSTIC")
+        print(f"  student_robot_v2 {__version__}")
+        print(f"  ROS_DOMAIN_ID:   {os.environ.get('ROS_DOMAIN_ID', 'not set')}")
+        print("-" * W)
+
+        # ── 1. Motors ──────────────────────────────────────────────────────────
+        try:
+            self.move.forward(seconds=0.2, speed=speed)
+            _time.sleep(0.1)
+            self.move.backward(seconds=0.2, speed=speed)
+            self.move.stop()
+            _pass("motors", "forward 0.2s + backward 0.2s")
+        except Exception as e:
+            _fail("motors", str(e))
+
+        # ── 2. Eyes ────────────────────────────────────────────────────────────
+        try:
+            self.eyes.color(0, 255, 0)       # green
+            _time.sleep(0.5)
+            self.eyes.color(0, 255, 200)     # back to teal
+            _pass("eyes", "green flash OK")
+        except Exception as e:
+            _fail("eyes", str(e))
+
+        # ── 3. Camera servos ───────────────────────────────────────────────────
+        try:
+            self.camera.nod(depth=200)
+            self.camera.wiggle(cycles=1, amplitude=150)
+            self.camera.center()
+            _pass("camera", "nod + wiggle + center")
+        except Exception as e:
+            _fail("camera", str(e))
+
+        # ── 4. Sonar ───────────────────────────────────────────────────────────
+        try:
+            cm = self.sonar.distance_cm()
+            if cm <= 0:
+                _fail("sonar", f"returned {cm} cm — check sensor")
+            elif cm > 300:
+                _fail("sonar", f"{cm} cm — unusually large, check sensor")
+            else:
+                _pass("sonar", f"{cm} cm")
+        except Exception as e:
+            _fail("sonar", str(e))
+
+        # ── 5. Vision (camera frame) ───────────────────────────────────────────
+        try:
+            frame = self.vision.capture(show=False)
+            if frame is None:
+                _fail("vision", "capture returned None")
+            else:
+                # frame may be a numpy array or a dict
+                shape = getattr(frame, "shape", None)
+                if shape:
+                    _pass("vision", f"frame {shape[1]}x{shape[0]}")
+                else:
+                    _pass("vision", "frame captured")
+        except Exception as e:
+            _fail("vision", str(e))
+
+        # ── 6. Voice ───────────────────────────────────────────────────────────
+        try:
+            self.voice.say("Ready.", block=True)
+            _pass("voice", f'said "Ready." (voice: {getattr(self.anim, "voice", "?")})')
+        except Exception as e:
+            _fail("voice", str(e))
+
+        # ── 7. Buzzer ──────────────────────────────────────────────────────────
+        try:
+            self.buzzer.beep(freq=1000, duration_s=0.15)
+            _time.sleep(0.05)
+            self.buzzer.beep(freq=1200, duration_s=0.15)
+            _pass("buzzer", "two-tone beep")
+        except Exception as e:
+            _fail("buzzer", str(e))
+
+        # ── Summary ────────────────────────────────────────────────────────────
+        print("-" * W)
+        for name, r in results.items():
+            icon = "✓" if r["ok"] else "✗"
+            label = f"  {icon}  {name:<10}  {r['detail']}"
+            print(label)
+        print("-" * W)
+        passed = sum(1 for r in results.values() if r["ok"])
+        total  = len(results)
+        if passed == total:
+            print(f"  RESULT:  {passed}/{total} — READY FOR CLASS ✓")
+            self.eyes.color(0, 255, 0)
+            _time.sleep(0.4)
+            self.eyes.color(0, 255, 200)
+        else:
+            failed = [n for n, r in results.items() if not r["ok"]]
+            print(f"  RESULT:  {passed}/{total} — CHECK: {', '.join(failed)}")
+            self.eyes.color(255, 80, 0)   # orange = attention needed
+        print("=" * W)
+        return results
 
 
 def bot(base_speed: float = 300.0, rate_hz: float = 20.0, prefer_student_moves: bool = False, verbose: bool = True) -> RobotV2:
