@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.5.1"
+__version__ = "2.5.2"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -352,15 +352,21 @@ class VisionNamespace(_BackendProxy):
         show: bool = True,
         save_path: Optional[str] = None,
         classes: Optional[list] = None,
-        model: str = "yolov8n.pt",
         object_diameter_cm: Optional[float] = None,
     ):
-        """Run YOLOv8 nano object detection.
+        """Detect objects using YOLOv8 nano (pre-installed on the robot).
 
-        Returns dict with found, count, objects (each has label, confidence,
-        bbox, angle_x_deg, and lateral_cm if object_diameter_cm is given).
+        Students do not need to choose a model — yolov8n is used automatically.
 
-        Requires: pip install ultralytics
+        Args:
+            conf:               Confidence threshold 0-1 (default 0.5).
+            show:               Display annotated frame in Jupyter.
+            classes:            Filter to specific COCO class IDs.
+                                e.g. classes=[32] for sports ball only.
+            object_diameter_cm: Real diameter in cm — enables lateral_cm estimate.
+
+        Returns dict: found, count, objects[]
+          Each object: label, confidence, cx, cy, angle_x_deg, lateral_cm
         """
         backend = self._ensure()
         return backend.detect_objects_yolo(
@@ -368,7 +374,6 @@ class VisionNamespace(_BackendProxy):
             show=show,
             save_path=save_path,
             classes=classes,
-            model=model,
             object_diameter_cm=object_diameter_cm,
         )
 
@@ -1179,7 +1184,24 @@ class RobotV2:
         except Exception as e:
             _fail("voice", str(e))
 
-        # ── 7. Buzzer ──────────────────────────────────────────────────────────
+        # ── 7. YOLO ────────────────────────────────────────────────────────────
+        try:
+            from ultralytics import YOLO as _YOLO  # type: ignore
+            import vision_lib as _vl
+            _paths = _vl._YOLO_MODEL_SEARCH_PATHS
+            model_found = any(p.exists() for p in _paths)
+            if model_found:
+                _pass("yolo", f"ultralytics installed, model at {next(p for p in _paths if p.exists())}")
+            else:
+                _fail("yolo", "ultralytics installed but yolov8n.pt not pre-installed — "
+                      "ask ops to run: python3 -c \"from ultralytics import YOLO; YOLO('yolov8n.pt')\" "
+                      "and copy to /opt/robot/models/yolov8n.pt")
+        except ImportError:
+            _fail("yolo", "ultralytics not installed — ask ops to run: pip install ultralytics")
+        except Exception as e:
+            _fail("yolo", str(e))
+
+        # ── 9. Buzzer ──────────────────────────────────────────────────────────
         try:
             self.buzzer.beep(freq=1000, duration_s=0.15)
             _time.sleep(0.05)

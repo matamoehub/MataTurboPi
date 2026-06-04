@@ -15,7 +15,7 @@ singleton-safe library that can:
 - report angular offset and lateral cm in target_position()
 - run YOLOv8 nano object detection
 """
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 
 import copy
 import base64
@@ -35,8 +35,16 @@ _CALIBRATION_SEARCH_PATHS = [
     Path.home() / "camera_calibration.npz",
 ]
 
-# Default YOLO model — yolov8n is the lightest, works on Raspberry Pi
-_DEFAULT_YOLO_MODEL = os.environ.get("YOLO_MODEL", "yolov8n.pt")
+# YOLO model — yolov8n nano, pre-installed on the robot at a fixed path.
+# Students never need to choose or specify a model.
+# Override with YOLO_MODEL env var for advanced use.
+_YOLO_MODEL_NAME = "yolov8n.pt"
+_YOLO_MODEL_SEARCH_PATHS = [
+    Path("/opt/robot/models/yolov8n.pt"),          # pre-installed by ops
+    Path(__file__).resolve().parent.parent / "models" / "yolov8n.pt",  # repo copy
+    Path.home() / ".config" / "Ultralytics" / "yolov8n.pt",  # ultralytics cache
+]
+_DEFAULT_YOLO_MODEL = os.environ.get("YOLO_MODEL", _YOLO_MODEL_NAME)
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
@@ -771,20 +779,33 @@ class Vision:
 
     # ── YOLO object detection ─────────────────────────────────────────────────
 
-    def _ensure_yolo(self, model_path: str = _DEFAULT_YOLO_MODEL) -> Any:
-        """Load YOLO model lazily."""
+    def _ensure_yolo(self) -> Any:
+        """Load YOLOv8 nano model lazily.
+
+        Checks pre-installed paths first (/opt/robot/models/yolov8n.pt),
+        then falls back to ultralytics auto-download.
+        Students never need to specify a model — it is always yolov8n.
+        """
         if self._yolo_model is not None:
             return self._yolo_model
         try:
             from ultralytics import YOLO  # type: ignore
-            self._yolo_model = YOLO(model_path)
-            print(f"[vision_lib] YOLO model loaded: {model_path}")
-            return self._yolo_model
         except ImportError:
             raise RuntimeError(
                 "YOLO requires the ultralytics package. "
-                "Install: pip install ultralytics"
+                "Ask ops to run: pip install ultralytics"
             )
+        # Use pre-installed model file if available — avoids internet dependency
+        for p in _YOLO_MODEL_SEARCH_PATHS:
+            if p.exists():
+                self._yolo_model = YOLO(str(p))
+                print(f"[vision_lib] YOLO nano loaded from {p}")
+                return self._yolo_model
+        # Not pre-installed — download (requires internet, first run only)
+        print("[vision_lib] downloading yolov8n.pt (first use only)...")
+        self._yolo_model = YOLO(_YOLO_MODEL_NAME)
+        print("[vision_lib] YOLO nano ready")
+        return self._yolo_model
 
     def detect_objects_yolo(
         self,
@@ -792,19 +813,20 @@ class Vision:
         show: bool = True,
         save_path: Optional[str] = None,
         classes: Optional[List[int]] = None,
-        model: str = _DEFAULT_YOLO_MODEL,
         object_diameter_cm: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Run YOLOv8 nano object detection on a captured frame.
 
+        Always uses the pre-installed yolov8n model — students do not
+        need to choose or download a model.
+
         Args:
-            conf:               Confidence threshold (0-1). Default 0.5.
+            conf:               Confidence threshold 0-1. Lower = more detections.
             show:               Display annotated frame in Jupyter.
             save_path:          Optional path to save annotated image.
             classes:            Filter to specific COCO class IDs (None = all).
-            model:              YOLO model path/name. Default yolov8n.pt.
-            object_diameter_cm: If given, estimate lateral cm for each object
-                                 using its bounding-box width.
+                                e.g. classes=[32] for sports ball only.
+            object_diameter_cm: If given, estimates lateral cm for each object.
 
         Returns dict with:
             found       bool
@@ -814,7 +836,7 @@ class Vision:
             path        saved image path or None
         """
         cv2, np = _require_runtime()
-        yolo = self._ensure_yolo(model)
+        yolo = self._ensure_yolo()
         frame = self.capture_frame()
 
         results = yolo(frame, conf=conf, classes=classes, verbose=False)
