@@ -889,19 +889,84 @@ class Vision:
         deadzone: int = 50,
         show: bool = True,
         min_area: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Find the largest colour object and return its direction from centre.
+
+        Original API — unchanged for backward compatibility.
+        For angular offset and lateral cm use locate_object() instead.
+
+        Returns: found, direction ("left"|"center"|"right"|"lost"),
+                 error (pixels from centre), target_x, deadzone, object, result.
+        """
+        result = self.find_color_objects(color=color, show=show, min_area=min_area)
+        objects = result["objects"]
+        centre_x = int(result["center_x"] if target_x is None else target_x)
+        threshold = abs(int(deadzone))
+
+        if not objects:
+            return {
+                "color":     result["color"],
+                "found":     False,
+                "direction": "lost",
+                "error":     None,
+                "target_x":  centre_x,
+                "deadzone":  threshold,
+                "object":    None,
+                "result":    result,
+            }
+
+        target = max(objects, key=lambda item: item["area"])
+        error = int(target["cx"] - centre_x)
+        if abs(error) <= threshold:
+            direction = "center"
+        elif error < 0:
+            direction = "left"
+        else:
+            direction = "right"
+
+        return {
+            "color":     result["color"],
+            "found":     True,
+            "direction": direction,
+            "error":     error,
+            "target_x":  centre_x,
+            "deadzone":  threshold,
+            "object":    target,
+            "result":    result,
+        }
+
+    def locate_object(
+        self,
+        color: str,
+        target_x: Optional[int] = None,
+        deadzone: int = 50,
+        show: bool = True,
+        min_area: Optional[int] = None,
         object_diameter_cm: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """Find the largest colour object and report its position.
+        """Find the largest colour object with real-world position data.
+
+        Enhanced version of target_position() — adds angular offset and
+        optional lateral distance. Uses camera calibration automatically.
+
+        Args:
+            color:               Colour name to detect ("red", "green", "blue").
+            deadzone:            Pixel half-width of the "center" zone.
+            object_diameter_cm:  Real diameter of the object in cm.
+                                 If given, lateral_cm is estimated from
+                                 the object's pixel width + calibration.
+                                 e.g. 6.5 for a standard football.
 
         Returns:
-            direction     "left" | "center" | "right" | "lost"
+            direction     "left" | "center" | "right" | "lost"  (same as target_position)
             found         bool
             error         pixel offset from centre (+ = right, - = left)
-            error_norm    normalised offset −1.0 to 1.0 (independent of resolution)
-            angle_x_deg   lateral angle in degrees (requires calibration; approx otherwise)
-            lateral_cm    estimated lateral distance in cm — only if object_diameter_cm
-                          is given AND calibration is loaded; otherwise None
-            object        largest detected object dict
+            error_norm    normalised -1.0..1.0 (resolution-independent, no depth needed)
+            angle_x_deg   lateral angle in degrees — positive = right of centre
+                          Uses calibration when loaded; falls back to FOV estimate.
+            lateral_cm    lateral distance in cm — only if object_diameter_cm given
+                          AND calibration is loaded; otherwise None.
+            object        largest detected object dict (x, y, w, h, cx, cy, area)
         """
         result = self.find_color_objects(color=color, show=show, min_area=min_area)
         objects = result["objects"]
@@ -926,15 +991,15 @@ class Vision:
         target = max(objects, key=lambda item: item["area"])
         error = int(target["cx"] - centre_x)
 
-        # Normalised error: -1.0 (far left) to +1.0 (far right)
+        # Normalised: -1.0 (far left) to +1.0 (far right)
         frame_w = result.get("width", self.width) or self.width
         error_norm = round(error / max(1, frame_w / 2), 3)
 
-        # Angular offset — uses calibration if loaded, otherwise estimates from FOV
+        # Angular offset — uses calibration if available
         angles = self.pixel_to_angle(target["cx"], target["cy"])
         angle_x_deg = angles["angle_x_deg"]
 
-        # Lateral cm estimate — only if real object size is given
+        # Lateral cm — only when real object size is known
         lateral_cm: Optional[float] = None
         if object_diameter_cm is not None:
             lateral_cm = self.estimate_lateral_cm(

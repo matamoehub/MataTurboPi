@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.5.0"
+__version__ = "2.5.1"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -287,17 +287,42 @@ class VisionNamespace(_BackendProxy):
         deadzone: int = 50,
         show: bool = True,
         min_area: Optional[int] = None,
-        object_diameter_cm: Optional[float] = None,
     ):
-        """Find colour object and return direction, angle, and optional lateral cm.
-
-        New fields vs old API:
-          error_norm    — normalised offset -1.0 to 1.0 (resolution-independent)
-          angle_x_deg   — lateral angle in degrees (uses calibration if loaded)
-          lateral_cm    — lateral distance in cm (only if object_diameter_cm given)
+        """Find colour object and return direction from centre.
+        Original API — unchanged. Use locate_object() for angles and cm.
         """
         backend = self._ensure()
         return backend.target_position(
+            color=color,
+            target_x=target_x,
+            deadzone=deadzone,
+            show=show,
+            min_area=min_area,
+        )
+
+    def locate_object(
+        self,
+        color: str,
+        target_x: Optional[int] = None,
+        deadzone: int = 50,
+        show: bool = True,
+        min_area: Optional[int] = None,
+        object_diameter_cm: Optional[float] = None,
+    ):
+        """Find colour object with real-world position data.
+
+        Enhanced version of target_position() — adds:
+          error_norm    normalised -1.0..1.0 (independent of resolution)
+          angle_x_deg   lateral angle in degrees (uses calibration automatically)
+          lateral_cm    lateral cm from centre (only if object_diameter_cm given)
+
+        Example:
+            pos = myRobot.vision.locate_object("red", object_diameter_cm=6.5)
+            print(pos["angle_x_deg"])   # e.g. -5.3 = ball 5.3° to the left
+            print(pos["lateral_cm"])    # e.g. -8.2 = ball 8.2 cm to the left
+        """
+        backend = self._ensure()
+        return backend.locate_object(
             color=color,
             target_x=target_x,
             deadzone=deadzone,
