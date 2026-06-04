@@ -12,7 +12,7 @@ singleton-safe library that can:
 - display annotated images inline in Jupyter
 - calibrate colour HSV ranges from the notebook
 """
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 import copy
 import base64
@@ -414,12 +414,19 @@ class Vision:
         height: int = 240,
         warmup_s: float = 0.15,
         min_area: int = 350,
+        skip_frames: int = 3,
     ):
         self.camera_index = int(os.environ.get("CAM_INDEX", camera_index if camera_index is not None else 0))
         self.width = int(width)
         self.height = int(height)
         self.warmup_s = float(warmup_s)
         self.min_area = int(min_area)
+        # Number of frames to read and discard after opening the camera.
+        # V4L2 buffers stale frames from the moment VideoCapture is created —
+        # the first read() returns an old frame, not the current scene.
+        # 3 discards clears the buffer reliably on all tested USB cameras.
+        # Override with CAM_SKIP_FRAMES env var if your camera needs more/fewer.
+        self.skip_frames = int(os.environ.get("CAM_SKIP_FRAMES", skip_frames))
         self._profiles: Dict[str, List[HSVRange]] = copy.deepcopy(DEFAULT_COLOR_PROFILES)
 
     def set_color_profile(
@@ -470,6 +477,12 @@ class Vision:
         cap = None
         try:
             cap = self._open_capture()
+            # Drain stale V4L2 buffer frames — the first N reads after open
+            # return buffered-up old frames, not the current scene. This is
+            # why the camera fails 1-in-4 calls from Jupyter: the buffer is
+            # stale and cap.read() returns an empty or black frame.
+            for _ in range(self.skip_frames):
+                cap.read()
             ok, frame = cap.read()
             if ok and frame is not None:
                 return frame
