@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.4.11"
+__version__ = "2.5.0"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -287,7 +287,15 @@ class VisionNamespace(_BackendProxy):
         deadzone: int = 50,
         show: bool = True,
         min_area: Optional[int] = None,
+        object_diameter_cm: Optional[float] = None,
     ):
+        """Find colour object and return direction, angle, and optional lateral cm.
+
+        New fields vs old API:
+          error_norm    — normalised offset -1.0 to 1.0 (resolution-independent)
+          angle_x_deg   — lateral angle in degrees (uses calibration if loaded)
+          lateral_cm    — lateral distance in cm (only if object_diameter_cm given)
+        """
         backend = self._ensure()
         return backend.target_position(
             color=color,
@@ -295,6 +303,48 @@ class VisionNamespace(_BackendProxy):
             deadzone=deadzone,
             show=show,
             min_area=min_area,
+            object_diameter_cm=object_diameter_cm,
+        )
+
+    def load_calibration(self, path: Optional[str] = None) -> bool:
+        """Load camera calibration from npz file.  Searches default paths if none given."""
+        backend = self._ensure()
+        return backend.load_calibration(path=path)
+
+    def undistort(self, frame):
+        """Undistort a frame using loaded calibration. Returns frame unchanged if no calibration."""
+        backend = self._ensure()
+        return backend.undistort_frame(frame)
+
+    def pixel_to_angle(self, pixel_x: float, pixel_y: Optional[float] = None):
+        """Convert pixel x (and optional y) to angular offset in degrees from centre."""
+        backend = self._ensure()
+        return backend.pixel_to_angle(pixel_x, pixel_y)
+
+    def detect_objects(
+        self,
+        conf: float = 0.5,
+        show: bool = True,
+        save_path: Optional[str] = None,
+        classes: Optional[list] = None,
+        model: str = "yolov8n.pt",
+        object_diameter_cm: Optional[float] = None,
+    ):
+        """Run YOLOv8 nano object detection.
+
+        Returns dict with found, count, objects (each has label, confidence,
+        bbox, angle_x_deg, and lateral_cm if object_diameter_cm is given).
+
+        Requires: pip install ultralytics
+        """
+        backend = self._ensure()
+        return backend.detect_objects_yolo(
+            conf=conf,
+            show=show,
+            save_path=save_path,
+            classes=classes,
+            model=model,
+            object_diameter_cm=object_diameter_cm,
         )
 
     def move_towards_color(
