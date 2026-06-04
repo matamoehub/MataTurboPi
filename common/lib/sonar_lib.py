@@ -25,7 +25,7 @@ Backward-compatible API still works:
     sonar = get_sonar()
     print(sonar.get_distance_cm())
 """
-__version__ = "2.2.2"
+__version__ = "2.2.3"
 
 import os
 import threading
@@ -51,6 +51,12 @@ _I2C_MIN_MM      = 20    # sensor floor — below this the reading is noise
 _I2C_MAX_MM      = 4999  # anything >= 5000 mm is "no echo" (out of range)
 _I2C_SENTINEL_MM = 255   # 0x00FF — MCU mid-measurement placeholder, not a real reading
 _I2C_SETTLE_MS   = 20    # settle time after trigger; 20 ms covers targets up to ~340 cm
+
+# Sentinel returned by _read_i2c_raw() to mean "I2C worked, but nothing in range".
+# This is distinct from None which means "I2C unavailable / hardware error".
+# The distinction stops get_distance_mm() from falling back to stale ROS data
+# when the sensor correctly reports no echo.
+_I2C_OUT_OF_RANGE = object()
 
 # Rate-limit cache: avoids hammering the I2C bus on rapid successive calls.
 # 50 ms → ~20 reads/s max.  Set SONAR_I2C_CACHE_TTL_S=0 to disable.
@@ -114,16 +120,17 @@ def _filtered_mean(samples: List[int]) -> float:
     return mean(survivors) if survivors else mu
 
 
-def _read_i2c_raw() -> Optional[int]:
-    """One synchronous Hiwonder-protocol I2C read.  Returns mm, or None on error.
+def _read_i2c_raw():
+    """One synchronous Hiwonder-protocol I2C read.
 
-    Two known bad values are filtered and retried:
-      - 255 mm (0x00FF): MCU sentinel while mid-measurement. Caused by the
-        10 ms settle being too short when sonar_controller fires its own
-        trigger during our sleep window. We now use 20 ms and retry once.
-      - 5000 mm: hardware ceiling returned when no echo is received (nothing
-        in range). Not a real distance — returned as None so callers can
-        distinguish "out of range" from a real reading.
+    Returns:
+        int               — valid distance in mm
+        _I2C_OUT_OF_RANGE — I2C worked, but no echo (nothing in range)
+        None              — I2C unavailable or hardware error
+
+    The caller MUST distinguish _I2C_OUT_OF_RANGE from None:
+      - _I2C_OUT_OF_RANGE → clear cache, return None, do NOT fall back to ROS
+      - None              → I2C broken, fall back to ROS subscriber
     """
     if not _I2C_ENABLED:
         return None
@@ -135,26 +142,25 @@ def _read_i2c_raw() -> Optional[int]:
             for attempt in range(2):
                 # Trigger a new measurement.
                 bus.i2c_rdwr(i2c_msg.write(_I2C_ADDR, [0x00]))
-                # Settle time: 20 ms covers targets up to ~340 cm and gives
-                # enough margin if sonar_controller fires mid-sleep and
-                # re-triggers the MCU (the re-triggered cycle also needs ~20 ms).
+                # 20 ms settle: covers targets up to ~340 cm and gives margin
+                # if sonar_controller fires mid-sleep and re-triggers the MCU.
                 time.sleep(_I2C_SETTLE_MS / 1000.0)
                 # Read 2-byte little-endian result.
                 read = i2c_msg.read(_I2C_ADDR, 2)
                 bus.i2c_rdwr(read)
                 mm = int.from_bytes(bytes(list(read)), byteorder='little', signed=False)
 
-                # 5000 mm = hardware "no echo" ceiling — nothing in range.
+                # >= 5000 mm = hardware "no echo" — I2C worked, nothing in range.
                 if mm >= 5000:
-                    return None
+                    return _I2C_OUT_OF_RANGE
 
                 # 255 mm = 0x00FF sentinel — MCU mid-measurement placeholder.
-                # Retry once with an extra 20 ms settle.
+                # Retry once with an extra settle.
                 if mm == _I2C_SENTINEL_MM:
                     if attempt == 0:
                         time.sleep(_I2C_SETTLE_MS / 1000.0)
                         continue
-                    return None   # still sentinel after retry — give up
+                    return _I2C_OUT_OF_RANGE  # still sentinel after retry
 
                 if _I2C_MIN_MM <= mm <= _I2C_MAX_MM:
                     return mm
@@ -186,15 +192,29 @@ def get_distance_mm(use_cache: bool = True) -> Optional[int]:
                 return _i2c_cache_mm
 
     # Primary: I2C
-    mm = _read_i2c_raw()
-    if mm is not None:
+    raw = _read_i2c_raw()
+
+    if raw is _I2C_OUT_OF_RANGE:
+        # I2C worked — sensor reports nothing in range.
+        # Clear the cache so rapid follow-up calls don't return a stale reading,
+        # and do NOT fall back to ROS (which may have stale data from before
+        # the object moved away).
+        with _i2c_lock:
+            _i2c_cache_mm = None
+            _i2c_cache_ts = 0.0
+            _last_source = "i2c"
+        return None
+
+    if raw is not None:
+        # Valid I2C reading.
+        mm = int(raw)
         with _i2c_lock:
             _i2c_cache_mm = mm
             _i2c_cache_ts = time.monotonic()
             _last_source = "i2c"
         return mm
 
-    # Fallback: ROS subscriber
+    # raw is None → I2C unavailable or hardware error. Fall back to ROS.
     try:
         sonar = _get_ros_sonar()
         ros_mm = sonar.wait_for_reading(timeout_s=2.0)

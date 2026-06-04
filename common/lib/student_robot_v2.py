@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.4.10"
+__version__ = "2.4.11"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
