@@ -15,7 +15,7 @@ singleton-safe library that can:
 - report angular offset and lateral cm in target_position()
 - run YOLOv8 nano object detection
 """
-__version__ = "1.3.1"
+__version__ = "1.3.2"
 
 import copy
 import base64
@@ -840,7 +840,6 @@ class Vision:
         frame = self.capture_frame()
 
         results = yolo(frame, conf=conf, classes=classes, verbose=False)
-        annotated = frame.copy()
 
         if self._ensure_calibration() and self._cal_K is not None:
             fx = float(self._cal_K[0, 0])
@@ -850,9 +849,14 @@ class Vision:
             cx_cam = self.width / 2.0
 
         objects = []
+        annotated = frame.copy()
         for result in results:
-            boxes  = result.boxes
-            names  = result.names
+            # Use YOLO's built-in plot() for professional annotated frame
+            # (per-class colours, background labels, proper styling)
+            annotated = result.plot()
+
+            boxes = result.boxes
+            names = result.names
             if boxes is None:
                 continue
             for box in boxes:
@@ -881,18 +885,10 @@ class Vision:
                     )
                 objects.append(obj)
 
-                cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 200, 255), 2)
-                cv2.putText(
-                    annotated,
-                    f"{label} {conf_v:.2f}",
-                    (x1, max(18, y1 - 6)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 200, 255), 2,
-                )
-
         path = None
         if show:
             info = self.show_image(annotated, save_path=save_path,
-                                   title=f"YOLO: {len(objects)} objects")
+                                   title=f"YOLO: {len(objects)} objects detected")
             path = info["path"]
         elif save_path:
             path = self._write_image(annotated, save_path=save_path)
