@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.5.2"
+__version__ = "2.5.3"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -701,6 +701,164 @@ class QRCodeNamespace(_BackendProxy):
         return self._owner._qrcode_backend
 
 
+class HelpNamespace:
+    """myRobot.help  — quick reference for every robot command.
+
+    Usage:
+        myRobot.help()           # list all topics
+        myRobot.help.move()      # movement commands
+        myRobot.help.eyes()      # eye LED commands
+        myRobot.help.camera()    # camera servo commands
+        myRobot.help.voice()     # text-to-speech commands
+        myRobot.help.vision()    # computer vision commands
+        myRobot.help.sonar()     # distance sensor commands
+        myRobot.help.buzzer()    # buzzer / sound commands
+        myRobot.help.anim()      # animation / blinking commands
+        myRobot.help.all()       # everything at once
+    """
+
+    def __call__(self):
+        """Print all available help topics."""
+        print("\n  myRobot.help topics:")
+        print("    myRobot.help.move()    — movement")
+        print("    myRobot.help.eyes()    — eye LEDs")
+        print("    myRobot.help.camera()  — camera servo")
+        print("    myRobot.help.voice()   — text-to-speech")
+        print("    myRobot.help.vision()  — computer vision")
+        print("    myRobot.help.sonar()   — distance sensor")
+        print("    myRobot.help.buzzer()  — buzzer / sound")
+        print("    myRobot.help.anim()    — animation / blinking")
+        print("    myRobot.help.all()     — show everything")
+        print()
+
+    def move(self):
+        print("""
+  MOVEMENT  (speed defaults to base_speed=300)
+    myRobot.move.forward(seconds=0.5)               # drive forward
+    myRobot.move.backward(seconds=0.5)              # drive backward
+    myRobot.move.left(seconds=0.5)                  # strafe left
+    myRobot.move.right(seconds=0.5)                 # strafe right
+    myRobot.move.turn_left(seconds=0.5)             # spin left in place
+    myRobot.move.turn_right(seconds=0.5)            # spin right in place
+    myRobot.move.drift_left(seconds=1.0, turn_blend=0.55)  # arc left (0=strafe, 1=spin)
+    myRobot.move.drift_right(seconds=1.0, turn_blend=0.55) # arc right
+    myRobot.move.diagonal_left(seconds=0.8)         # diagonal forward-left
+    myRobot.move.diagonal_right(seconds=0.8)        # diagonal forward-right
+    myRobot.move.stop()                             # stop all motors immediately
+    myRobot.move.forward(seconds=0.5, speed=200)    # custom speed
+""")
+
+    def eyes(self):
+        print("""
+  EYES  (RGB values 0-255)
+    myRobot.eyes.color(0, 255, 200)                 # set both eyes to teal
+    myRobot.eyes.color(255, 0, 0)                   # red
+    myRobot.eyes.off()                              # turn both eyes off
+    myRobot.eyes.left(255, 165, 0)                  # set left eye only
+    myRobot.eyes.right(0, 0, 255)                   # set right eye only
+    myRobot.eyes.blink(every_s=3.0, blank_s=0.3)   # start blinking
+    myRobot.eyes.stop_blink()                       # stop blinking
+    myRobot.eyes.blink_once()                       # blink once
+    myRobot.eyes.wink(side="left")                  # wink left eye
+""")
+
+    def camera(self):
+        print("""
+  CAMERA SERVO  (amplitude controls how far, depth/width controls swing size)
+    myRobot.camera.center()                         # look straight ahead
+    myRobot.camera.nod(depth=200)                   # nod up and down
+    myRobot.camera.shake(width=200)                 # shake left and right (no)
+    myRobot.camera.wiggle(cycles=2, amplitude=200)  # friendly left-right wiggle
+    myRobot.camera.tiny_wiggle(seconds=2.0)         # subtle continuous fidget
+    myRobot.camera.glance_left(amplitude=250, hold_s=0.3)   # quick look left
+    myRobot.camera.glance_right(amplitude=250, hold_s=0.3)  # quick look right
+    myRobot.camera.left(amplitude=300)              # hold looking left
+    myRobot.camera.right(amplitude=300)             # hold looking right
+    myRobot.camera.up(amplitude=200)                # tilt up
+    myRobot.camera.down(amplitude=200)              # tilt down
+""")
+
+    def voice(self):
+        print("""
+  VOICE / TTS
+    myRobot.voice.say("Hello!")                     # speak (blocks until done)
+    myRobot.voice.say("Hello!", block=False)        # speak without waiting
+    myRobot.voice.select("amy")                     # choose Amy voice
+    myRobot.voice.select("ryan")                    # choose Ryan voice
+    myRobot.voice.show_voices()                     # list available voices
+    myRobot.voice.set_volume(80)                    # set volume 0-100
+    myRobot.voice.generate(key="hi", text="Hello!") # pre-generate for speed
+    myRobot.voice.play(key="hi")                    # play pre-generated phrase
+""")
+
+    def vision(self):
+        print("""
+  VISION
+    myRobot.vision.capture()                        # take a photo and show it
+    myRobot.vision.find_color("red")                # detect red objects
+    myRobot.vision.find_color("green", show=False)  # detect without displaying
+    myRobot.vision.target_position("red", deadzone=50)
+        # → direction ("left"/"center"/"right"/"lost"), error (pixels)
+    myRobot.vision.locate_object("red", deadzone=50)
+        # → + angle_x_deg (degrees), error_norm (-1..1)
+    myRobot.vision.locate_object("red", object_diameter_cm=6.5)
+        # → + lateral_cm (cm from centre, needs real object size)
+    myRobot.vision.detect_objects(conf=0.5)         # YOLO detect all objects
+    myRobot.vision.detect_objects(classes=[32])     # sports ball only (class 32)
+    myRobot.vision.calibrate_color("red")           # recalibrate red detection
+    myRobot.vision.load_calibration()               # load camera calibration
+    myRobot.vision.pixel_to_angle(320, 240)         # pixel coords → angle degrees
+
+  Common YOLO classes: 0=person  32=sports ball  39=bottle  41=cup  67=phone
+""")
+
+    def sonar(self):
+        print("""
+  SONAR / DISTANCE
+    myRobot.sonar.distance_cm()                     # distance in cm (None if nothing)
+    myRobot.sonar.distance_mm()                     # distance in mm
+    myRobot.sonar.is_closer_than(30)                # True if object < 30 cm away
+    myRobot.sonar.source()                          # "i2c" or "ros"
+
+  Tip: returns None when nothing is in range (not 500 or 26 — those are filtered)
+""")
+
+    def buzzer(self):
+        print("""
+  BUZZER / SOUND
+    myRobot.buzzer.beep(freq=1000, duration_s=0.2)  # single beep at 1000 Hz
+    myRobot.buzzer.play_notes("C4:0.5 E4:0.5 G4:1", bpm=120)  # play a melody
+    myRobot.buzzer.horn()                            # play the horn sound file
+
+  Note score format: "NOTE:DURATION" e.g. "C4:0.5 D4:0.5 E4:1.0"
+  Notes: C D E F G A B  Octaves: 3 4 5  Sharp: C#4  Rest: R:0.5
+""")
+
+    def anim(self):
+        print("""
+  ANIMATION  (runs in background thread)
+    myRobot.anim.start_blinking(every_s=3.0, blank_s=0.3)  # blink every 3s
+    myRobot.anim.stop_blinking()                    # stop blinking
+    myRobot.anim.blink_once(blank_s=0.3)            # single blink
+    myRobot.anim.wink(side="left")                  # wink one eye
+    myRobot.anim.nod(depth=200)                     # nod camera
+    myRobot.anim.shake(width=200)                   # shake camera
+    myRobot.anim.speak("Hello!", block=True)        # speak via animation system
+    myRobot.anim.select_voice("amy")                # select voice
+    myRobot.anim.show_voices()                      # list available voices
+""")
+
+    def all(self):
+        self.move()
+        self.eyes()
+        self.camera()
+        self.voice()
+        self.vision()
+        self.sonar()
+        self.buzzer()
+        self.anim()
+
+
 class RobotV2:
     def __init__(
         self,
@@ -749,6 +907,7 @@ class RobotV2:
         self.tts = self.voice
         self.sound = self.buzzer
         self.ultra = self.sonar
+        self.help = HelpNamespace()
 
         self._ensure_backends()
 
