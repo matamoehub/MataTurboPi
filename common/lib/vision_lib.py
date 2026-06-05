@@ -15,7 +15,7 @@ singleton-safe library that can:
 - report angular offset and lateral cm in target_position()
 - run YOLOv8 nano object detection
 """
-__version__ = "1.3.2"
+__version__ = "1.3.3"
 
 import copy
 import base64
@@ -788,6 +788,15 @@ class Vision:
         """
         if self._yolo_model is not None:
             return self._yolo_model
+        # ultralytics imports matplotlib.pyplot on load which triggers the
+        # Jupyter inline backend and crashes with a version mismatch:
+        #   AttributeError: 'RcParams' object has no attribute '_get'
+        # Force a non-interactive backend before the import to avoid this.
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+        except Exception:
+            pass
         try:
             from ultralytics import YOLO  # type: ignore
         except ImportError:
