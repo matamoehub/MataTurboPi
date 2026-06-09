@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 # robot_moves.py — direct motor moves + diagonals + wheel-level drift + horn + RobotMoves class
 from typing import List, Tuple, Optional
@@ -16,6 +16,50 @@ SIGN: List[int] = [-1, 1, -1, 1]
 
 BASE_SPEED: float = float(os.environ.get("BASE_SPEED", "300"))
 RATE_HZ: float = float(os.environ.get("RATE_HZ", "20"))
+
+# ── Motor prime — cold-start inrush protection ────────────────────────────────
+# All 4 mecanum motors starting simultaneously from cold draw stall/inrush
+# current (5-10× running current) for the first fraction of a second.
+# On a loaded battery this causes a voltage spike that can trip battery
+# protection or brownout the Pi.
+#
+# The prime runs a brief low-speed forward/backward ONCE per process before
+# the first real move, absorbing the inrush on a low-stakes pulse so the
+# real move draws normal running current only.
+#
+# Confirmed fix: first move after long idle (eyes blinking, camera active,
+# TTS just played) caused visible battery spike — prime eliminated it.
+#
+# Set MOTOR_PRIME_ENABLED=0 to disable.
+# Tune MOTOR_PRIME_SPEED and MOTOR_PRIME_SECONDS if needed.
+_MOTOR_PRIME_ENABLED = os.environ.get("MOTOR_PRIME_ENABLED", "1").strip() != "0"
+_MOTOR_PRIME_SPEED   = float(os.environ.get("MOTOR_PRIME_SPEED",   "80"))
+_MOTOR_PRIME_SECONDS = float(os.environ.get("MOTOR_PRIME_SECONDS", "0.12"))
+_MOTORS_PRIMED: bool = False
+
+
+def _ensure_primed() -> None:
+    """Run a one-time low-speed pulse before the first real motor command.
+
+    The flag is set BEFORE the prime runs to prevent recursion — _spam()
+    calls _ensure_primed() which would otherwise call _spam() again.
+    """
+    global _MOTORS_PRIMED
+    if _MOTORS_PRIMED or not _MOTOR_PRIME_ENABLED:
+        return
+    _MOTORS_PRIMED = True   # set first — prevents re-entry
+    s = _MOTOR_PRIME_SPEED
+    t = _MOTOR_PRIME_SECONDS
+    stream_speeds(_pairs_from4(+s, +s, +s, +s), seconds=t, rate_hz=RATE_HZ)
+    time.sleep(0.05)
+    stream_speeds(_pairs_from4(-s, -s, -s, -s), seconds=t, rate_hz=RATE_HZ)
+    time.sleep(0.05)
+
+
+def reset_prime() -> None:
+    """Force the prime to run again on the next move (e.g. after a long idle)."""
+    global _MOTORS_PRIMED
+    _MOTORS_PRIMED = False
 
 def set_base_speed(speed: float):
     global BASE_SPEED
@@ -38,6 +82,7 @@ def _pairs_from4(fl: float, fr: float, rl: float, rr: float) -> List[Tuple[int, 
 
 def _spam(fl: float, fr: float, rl: float, rr: float, seconds: float):
     enable_motors(True)
+    _ensure_primed()
     stream_speeds(_pairs_from4(fl, fr, rl, rr), seconds=float(seconds), rate_hz=RATE_HZ)
 
 def stop():
@@ -295,6 +340,7 @@ class RobotMoves:
 
     def stop(self): stop()
     def emergency_stop(self): emergency_stop()
+    def reset_prime(self): reset_prime()
 
     def forward(self, seconds: float = 0.5, speed: float = None): forward(seconds, speed)
     def backward(self, seconds: float = 0.5, speed: float = None): backward(seconds, speed)

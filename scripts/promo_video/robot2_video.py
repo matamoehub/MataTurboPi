@@ -38,15 +38,8 @@ myRobot = bot(base_speed=300)
 myRobot.voice.select("ryan")
 #myRobot.voice.set_volume(90)
 
-# ── MOTOR PRIME — prevents inrush current spike on first audience-facing move ─
-# Wakes all 4 motors gently before the script starts so the first real move
-# draws normal running current instead of cold-start inrush current.
-myRobot.move.forward(seconds=0.15, speed=80)
-myRobot.move.backward(seconds=0.15, speed=80)
-myRobot.move.stop()
-time.sleep(0.2)
-
 # ── WAKE UP ───────────────────────────────────────────────────────────────────
+# Motor prime runs automatically on first move (built into robot_moves v1.2.0)
 myRobot.eyes.off()
 time.sleep(0.5)
 myRobot.eyes.color(0, 100, 80)
