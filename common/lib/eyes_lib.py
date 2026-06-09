@@ -1,4 +1,4 @@
-__version__ = "2.0.1"
+__version__ = "2.0.2"
 
 # eyes_lib.py
 """RGB eye LED control for Hiwonder TurboPi.
@@ -265,35 +265,51 @@ class Eyes:
         Held under _write_lock so multi-LED updates (e.g. set_both) are
         atomic — the blink thread cannot slip in between the two I2C writes
         and leave one eye on and one eye off.
+
+        I2C: ALL LEDs are written inside a single SMBus context so a transient
+        error on the first LED cannot leave the second LED in a different state
+        (the "left eye off, right eye on" fault seen in the field).  Previously
+        each LED opened its own SMBus context; a silent exception on LED 0
+        skipped that write while LED 1 still succeeded.
         """
         with self._write_lock:
             if self.backend == "i2c":
-                for idx, r, g, b in states:
-                    _i2c_write_pixel(idx, r, g, b)
+                if _I2C_ENABLED and _smbus2_ok():
+                    try:
+                        from smbus2 import SMBus
+                        with SMBus(_I2C_BUS) as bus:
+                            for idx, r, g, b in states:
+                                reg = _I2C_LED_REG.get(idx)
+                                if reg is not None:
+                                    bus.write_byte_data(_I2C_ADDR, reg,     r & 0xFF)
+                                    bus.write_byte_data(_I2C_ADDR, reg + 1, g & 0xFF)
+                                    bus.write_byte_data(_I2C_ADDR, reg + 2, b & 0xFF)
+                    except Exception:
+                        pass
                 return
 
-        if self.backend == "controller":
-            _controller_post(
-                self.controller_url,
-                {
-                    "states": [
-                        {"index": idx, "red": r, "green": g, "blue": b}
-                        for idx, r, g, b in states
-                    ]
-                },
-            )
-            return
+            if self.backend == "controller":
+                _controller_post(
+                    self.controller_url,
+                    {
+                        "states": [
+                            {"index": idx, "red": r, "green": g, "blue": b}
+                            for idx, r, g, b in states
+                        ]
+                    },
+                )
+                return
 
-        # ROS path
-        if RGBState is None or RGBStates is None:
-            raise RuntimeError("ROS messages not available; cannot publish")
-        msg = RGBStates()
-        msg.states = [
-            RGBState(index=idx, red=r, green=g, blue=b)
-            for idx, r, g, b in states
-        ]
-        self.pub.publish(msg)
-        self._flush()
+            # ROS path
+            if RGBState is None or RGBStates is None:
+                raise RuntimeError("ROS messages not available; cannot publish")
+            msg = RGBStates()
+            msg.states = [
+                RGBState(index=idx, red=r, green=g, blue=b)
+                for idx, r, g, b in states
+            ]
+            self.pub.publish(msg)
+            self._flush()
 
     # Keep _publish_states for any internal callers that still pass RGBState objects
     def _publish_states(self, states) -> None:
