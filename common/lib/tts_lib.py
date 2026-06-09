@@ -1,4 +1,4 @@
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 
 # tts_lib.py
 # Piper TTS helper for Matamoe robots (Python 3.10)
@@ -42,6 +42,7 @@ VOLUME_CONTROLS = tuple(
 )
 DEFAULT_AUDIO_VOLUME = max(0, min(100, int(os.environ.get("ROBOT_DEFAULT_AUDIO_VOLUME", "40"))))
 _DEFAULT_VOLUME_READY = False
+_DEFAULT_VOLUME_FAILED = False   # set after first failure so we warn once only
 PREFERRED_VOLUME_CONTROLS = (
     "Master",
     "PCM",
@@ -237,11 +238,57 @@ def _pick_volume_control(control: Optional[str] = None) -> str:
     )
 
 
+def _set_volume_pipewire(percent: int) -> bool:
+    """Try setting volume via wpctl (PipeWire/WirePlumber). Returns True on success."""
+    if not shutil.which("wpctl"):
+        return False
+    try:
+        # wpctl uses 0.0–1.0 scale, not percent
+        vol = f"{percent / 100:.2f}"
+        proc = subprocess.run(
+            ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", vol],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, cwd=_safe_workdir(), check=False,
+        )
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
+def _set_volume_pulseaudio(percent: int) -> bool:
+    """Try setting volume via pactl (PulseAudio). Returns True on success."""
+    if not shutil.which("pactl"):
+        return False
+    try:
+        proc = subprocess.run(
+            ["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{percent}%"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, cwd=_safe_workdir(), check=False,
+        )
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
 def set_volume(percent: int, control: Optional[str] = None) -> dict:
     """
-    Set robot audio output volume using ALSA.
+    Set robot audio output volume.
+
+    Tries backends in order: PipeWire (wpctl) → PulseAudio (pactl) → ALSA (amixer).
+    Raspberry Pi 5 with modern Raspberry Pi OS uses PipeWire, so amixer finds no
+    controls — the wpctl path handles it cleanly.
     """
     value = _clamp_volume_percent(percent)
+
+    # 1. PipeWire (Pi 5 / modern Raspberry Pi OS)
+    if not control and _set_volume_pipewire(value):
+        return {"ok": True, "control": "wpctl:@DEFAULT_AUDIO_SINK@", "volume": value}
+
+    # 2. PulseAudio
+    if not control and _set_volume_pulseaudio(value):
+        return {"ok": True, "control": "pactl:@DEFAULT_SINK@", "volume": value}
+
+    # 3. ALSA amixer fallback
     chosen = _pick_volume_control(control)
     proc = subprocess.run(
         ["amixer", "set", chosen, f"{value}%"],
@@ -279,14 +326,14 @@ def get_volume(control: Optional[str] = None) -> dict:
 
 def ensure_default_volume(percent: int = DEFAULT_AUDIO_VOLUME, control: Optional[str] = None) -> dict:
     """
-    Set the default ALSA playback volume once per process.
-    This keeps speech output at a classroom-friendly level without requiring
-    each lesson to call set_volume manually.
+    Set the default audio playback volume once per process.
+    Tries PipeWire → PulseAudio → ALSA in order.
+    After the first attempt (success or failure) this becomes a no-op so the
+    warning never repeats on every say() call.
     """
-    global _DEFAULT_VOLUME_READY
-    if _DEFAULT_VOLUME_READY:
-        chosen = _pick_volume_control(control)
-        return {"ok": True, "control": chosen, "volume": _clamp_volume_percent(percent), "cached": True}
+    global _DEFAULT_VOLUME_READY, _DEFAULT_VOLUME_FAILED
+    if _DEFAULT_VOLUME_READY or _DEFAULT_VOLUME_FAILED:
+        return {"ok": _DEFAULT_VOLUME_READY, "cached": True, "volume": _clamp_volume_percent(percent)}
     result = set_volume(percent, control=control)
     _DEFAULT_VOLUME_READY = True
     return result
@@ -387,7 +434,10 @@ def play_wav_async(path: str, device: Optional[str] = None):
     try:
         ensure_default_volume()
     except Exception as e:
-        print("[tts_lib] warn: could not set default volume:", e)
+        global _DEFAULT_VOLUME_FAILED
+        if not _DEFAULT_VOLUME_FAILED:
+            print("[tts_lib] warn: could not set volume (will not retry):", e)
+            _DEFAULT_VOLUME_FAILED = True
     cmd = ["aplay"]
     if device:
         cmd += ["-D", device]
