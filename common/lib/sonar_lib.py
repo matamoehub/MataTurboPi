@@ -25,7 +25,7 @@ Backward-compatible API still works:
     sonar = get_sonar()
     print(sonar.get_distance_cm())
 """
-__version__ = "2.2.3"
+__version__ = "2.2.4"
 
 import os
 import threading
@@ -74,6 +74,18 @@ def _smbus2_ok() -> bool:
         except ImportError:
             _smbus2_available = False
     return bool(_smbus2_available)
+
+
+# Shared transaction lock for the 0x77 device (sonar + eyes share one MCU).
+# Falls back to a local lock if the shared module isn't importable, so the
+# sonar never breaks just because eyes_lib is absent.
+try:
+    from i2c_bus import bus_lock as _bus_lock
+except Exception:  # pragma: no cover - shared module should be on path
+    _fallback_bus_lock = threading.Lock()
+
+    def _bus_lock() -> threading.Lock:
+        return _fallback_bus_lock
 
 
 # ── ROS imports — optional, used only as fallback ─────────────────────────────
@@ -138,7 +150,10 @@ def _read_i2c_raw():
         return None
     try:
         from smbus2 import SMBus, i2c_msg
-        with SMBus(_I2C_BUS) as bus:
+        # Hold the shared 0x77 lock across the whole trigger->settle->read
+        # sequence so an eyes_lib LED write can't land between the trigger and
+        # the read and corrupt the measurement.
+        with _bus_lock(), SMBus(_I2C_BUS) as bus:
             for attempt in range(2):
                 # Trigger a new measurement.
                 bus.i2c_rdwr(i2c_msg.write(_I2C_ADDR, [0x00]))

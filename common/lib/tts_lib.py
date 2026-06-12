@@ -1,4 +1,4 @@
-__version__ = "1.2.2"
+__version__ = "1.2.4"
 
 # tts_lib.py
 # Piper TTS helper for Matamoe robots (Python 3.10)
@@ -7,12 +7,9 @@ __version__ = "1.2.2"
 # - Synth text -> wav (cached by hash)
 # - Play wav via aplay
 # - Simple say() helper (blocking or async)
-# - Optional queued TTS scheduler (get_tts_queue())
 
 import os
 import time
-import queue
-import threading
 import subprocess
 import shutil
 import hashlib
@@ -270,6 +267,47 @@ def _set_volume_pulseaudio(percent: int) -> bool:
         return False
 
 
+def _get_volume_pipewire() -> Optional[int]:
+    """Read volume via wpctl (PipeWire/WirePlumber). Returns 0-100 or None."""
+    if not shutil.which("wpctl"):
+        return None
+    try:
+        proc = subprocess.run(
+            ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, cwd=_safe_workdir(), check=False,
+        )
+        if proc.returncode != 0:
+            return None
+        # Output like: "Volume: 0.40" or "Volume: 0.40 [MUTED]"
+        m = re.search(r"Volume:\s*([0-9.]+)", proc.stdout or "")
+        if not m:
+            return None
+        return _clamp_volume_percent(int(round(float(m.group(1)) * 100)))
+    except Exception:
+        return None
+
+
+def _get_volume_pulseaudio() -> Optional[int]:
+    """Read volume via pactl (PulseAudio). Returns 0-100 or None."""
+    if not shutil.which("pactl"):
+        return None
+    try:
+        proc = subprocess.run(
+            ["pactl", "get-sink-volume", "@DEFAULT_SINK@"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, cwd=_safe_workdir(), check=False,
+        )
+        if proc.returncode != 0:
+            return None
+        m = re.search(r"(\d{1,3})%", proc.stdout or "")
+        if not m:
+            return None
+        return _clamp_volume_percent(int(m.group(1)))
+    except Exception:
+        return None
+
+
 def set_volume(percent: int, control: Optional[str] = None) -> dict:
     """
     Set robot audio output volume.
@@ -305,8 +343,20 @@ def set_volume(percent: int, control: Optional[str] = None) -> dict:
 
 def get_volume(control: Optional[str] = None) -> dict:
     """
-    Return the current ALSA volume percentage for the chosen control.
+    Return the current audio output volume percentage.
+
+    Tries the same backends as set_volume: PipeWire (wpctl) → PulseAudio
+    (pactl) → ALSA (amixer). On a Pi 5 / modern Raspberry Pi OS amixer finds
+    no controls, so the wpctl path is what actually answers there.
     """
+    if not control:
+        vol = _get_volume_pipewire()
+        if vol is not None:
+            return {"ok": True, "control": "wpctl:@DEFAULT_AUDIO_SINK@", "volume": vol}
+        vol = _get_volume_pulseaudio()
+        if vol is not None:
+            return {"ok": True, "control": "pactl:@DEFAULT_SINK@", "volume": vol}
+
     chosen = _pick_volume_control(control)
     proc = subprocess.run(
         ["amixer", "sget", chosen],
@@ -482,104 +532,3 @@ def say(
         p.wait()
     return path
 
-
-# -------- Async TTS Queue --------
-
-class TTSJob:
-    def __init__(
-        self,
-        text: str,
-        when: float,
-        voice: str,
-        length_scale: str,
-        sentence_silence: str,
-        device: Optional[str],
-        block: bool,
-    ):
-        self.text = text
-        self.when = float(when)
-        self.voice = voice
-        self.length_scale = length_scale
-        self.sentence_silence = sentence_silence
-        self.device = device
-        self.block = block
-
-
-class TTSQueue:
-    def __init__(
-        self,
-        default_voice: Optional[str] = None,
-        default_length: str = "1.00",
-        default_sil: str = "0.12",
-        device: Optional[str] = None,
-    ):
-        self.default_voice = _resolve_voice(default_voice)
-        self.default_length = default_length
-        self.default_sil = default_sil
-        self.device = device
-
-        self.q = queue.PriorityQueue()
-        self._idx = 0
-        self._stop = threading.Event()
-        self._thr = threading.Thread(target=self._run, daemon=True)
-        self._thr.start()
-
-    def schedule(
-        self,
-        text: str,
-        delay_s: float = 0.0,
-        voice: Optional[str] = None,
-        length_scale: Optional[str] = None,
-        sentence_silence: Optional[str] = None,
-        block: bool = True,
-    ):
-        t = time.time() + float(delay_s)
-        job = TTSJob(
-            text=text,
-            when=t,
-            voice=voice or self.default_voice,
-            length_scale=length_scale or self.default_length,
-            sentence_silence=sentence_silence or self.default_sil,
-            device=self.device,
-            block=block,
-        )
-        self.q.put((t, self._idx, job))
-        self._idx += 1
-
-    def _run(self):
-        while not self._stop.is_set():
-            try:
-                when, _, job = self.q.get(timeout=0.1)
-            except queue.Empty:
-                continue
-
-            dt = when - time.time()
-            if dt > 0:
-                time.sleep(dt)
-
-            try:
-                path = pre_synth(
-                    job.text,
-                    voice=job.voice,
-                    length_scale=job.length_scale,
-                    sentence_silence=job.sentence_silence,
-                )
-                p = play_path_async(path, device=job.device)
-                if job.block:
-                    p.wait()
-            except Exception as e:
-                print("[TTSQueue] error:", e)
-
-    def stop(self):
-        self._stop.set()
-        self._thr.join(timeout=1.0)
-
-
-# Singleton queue (created on demand)
-_ttsq: Optional[TTSQueue] = None
-
-def get_tts_queue() -> TTSQueue:
-    global _ttsq
-    if _ttsq is None:
-        _ttsq = TTSQueue(default_voice=None, default_length="0.98", default_sil="0.08", device=None)
-    return _ttsq

@@ -1,4 +1,4 @@
-__version__ = "2.0.2"
+__version__ = "2.0.3"
 
 # eyes_lib.py
 """RGB eye LED control for Hiwonder TurboPi.
@@ -60,6 +60,20 @@ _I2C_ADDR    = int(os.environ.get("EYES_I2C_ADDR", "0x77"), 16)
 _I2C_LED_REG: dict = {0: 3, 1: 6}
 
 _smbus2_available: Optional[bool] = None
+
+# Warn at most once if I2C LED writes start failing, instead of silently
+# swallowing every error (the "left eye off" fault was invisible for ages).
+_I2C_WARN_EMITTED = False
+
+# Shared transaction lock for the 0x77 device (sonar + eyes share one MCU).
+# Falls back to a local lock if the shared module isn't importable.
+try:
+    from i2c_bus import bus_lock as _bus_lock
+except Exception:  # pragma: no cover - shared module should be on path
+    _fallback_bus_lock = threading.Lock()
+
+    def _bus_lock() -> threading.Lock:
+        return _fallback_bus_lock
 
 
 def _smbus2_ok() -> bool:
@@ -272,20 +286,25 @@ class Eyes:
         each LED opened its own SMBus context; a silent exception on LED 0
         skipped that write while LED 1 still succeeded.
         """
+        global _I2C_WARN_EMITTED
         with self._write_lock:
             if self.backend == "i2c":
                 if _I2C_ENABLED and _smbus2_ok():
                     try:
                         from smbus2 import SMBus
-                        with SMBus(_I2C_BUS) as bus:
+                        # Hold the shared 0x77 lock so this LED write can't slip
+                        # between a sonar trigger and its read on another thread.
+                        with _bus_lock(), SMBus(_I2C_BUS) as bus:
                             for idx, r, g, b in states:
                                 reg = _I2C_LED_REG.get(idx)
                                 if reg is not None:
                                     bus.write_byte_data(_I2C_ADDR, reg,     r & 0xFF)
                                     bus.write_byte_data(_I2C_ADDR, reg + 1, g & 0xFF)
                                     bus.write_byte_data(_I2C_ADDR, reg + 2, b & 0xFF)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        if not _I2C_WARN_EMITTED:
+                            print(f"[eyes_lib] warn: I2C LED write failed (will not repeat): {e}")
+                            _I2C_WARN_EMITTED = True
                 return
 
             if self.backend == "controller":
@@ -343,7 +362,13 @@ class Eyes:
         except Exception:
             pass
 
-    def blink(self, color=(255, 255, 255), period_s=0.25, duration_s=1.0) -> None:
+    def blink_burst(self, color=(255, 255, 255), period_s=0.25, duration_s=1.0) -> None:
+        """Blink the eyes on/off for duration_s seconds (blocking).
+
+        Renamed from blink() to avoid colliding with the facade's
+        myRobot.eyes.blink(), which starts *background* blinking.  The old
+        name still works as an alias.
+        """
         end = time.time() + float(duration_s)
         on = True
         while time.time() < end:
@@ -354,6 +379,9 @@ class Eyes:
             on = not on
             time.sleep(float(period_s))
         self.off()
+
+    # Back-compat alias for the blocking burst-blink.
+    blink = blink_burst
 
     def scan_indices(
         self,

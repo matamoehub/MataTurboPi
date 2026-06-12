@@ -15,7 +15,7 @@ singleton-safe library that can:
 - report angular offset and lateral cm in target_position()
 - run YOLOv8 nano object detection
 """
-__version__ = "1.3.3"
+__version__ = "1.3.4"
 
 import copy
 import base64
@@ -1198,11 +1198,16 @@ class Vision:
         elif save_path:
             path = self._write_image(annotated, save_path=save_path)
 
+        # Keep one entry per detected hand (None when the gesture didn't map to
+        # a rock/paper/scissors move) so game_moves[0] is safe whenever a hand
+        # was seen.  first_move is None-safe even when no hand was detected.
+        game_moves = [hand.get("game_move") for hand in hands_found]
         return {
             "found": bool(hands_found),
             "count": len(hands_found),
             "hands": hands_found,
-            "game_moves": [hand["game_move"] for hand in hands_found if hand.get("game_move")],
+            "game_moves": game_moves,
+            "first_move": game_moves[0] if game_moves else None,
             "path": path,
         }
 

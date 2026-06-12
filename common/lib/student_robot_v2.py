@@ -17,11 +17,12 @@ import importlib
 import importlib.util
 from pathlib import Path
 import threading
+import time
 from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.5.3"
+__version__ = "2.5.4"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -58,6 +59,22 @@ class _BackendProxy:
             raise AttributeError(f"Backend unavailable for {type(self).__name__}.{name}")
         return getattr(backend, name)
 
+    def __repr__(self) -> str:
+        # Friendly status so `print(myRobot.infrared)` in the test-bench
+        # lessons shows "ready"/"unavailable" instead of a raw object id.
+        label = type(self).__name__.replace("Namespace", "").lower()
+        try:
+            backend = self._ensure()
+        except Exception as exc:  # backend init raised
+            return f"<robot.{label}: unavailable ({exc})>"
+        if backend is not None:
+            return f"<robot.{label}: ready>"
+        errs = getattr(self._owner, "_errors", {})
+        detail = errs.get(f"{label}_lib") or errs.get(label)
+        if detail:
+            return f"<robot.{label}: unavailable ({detail})>"
+        return f"<robot.{label}: unavailable>"
+
 
 class MoveNamespace(_BackendProxy):
     def _get_backend(self):
@@ -80,7 +97,10 @@ class MoveNamespace(_BackendProxy):
             raise AttributeError(f"Move '{move_name}' is not available")
         effective_speed = float(self._owner.base_speed) if speed is None else float(speed)
         self._owner._status("move", move_name, f"seconds={seconds}", f"speed={effective_speed}")
-        return fn(seconds=seconds, speed=speed, **kwargs)
+        # Pass the resolved speed explicitly so the action always matches the
+        # logged speed (and isn't silently overridden by a stale backend
+        # BASE_SPEED when bot() is re-created with a new base_speed).
+        return fn(seconds=seconds, speed=effective_speed, **kwargs)
 
     def forward(self, seconds: float = 0.5, speed: Optional[float] = None):
         return self.run("forward", seconds=seconds, speed=speed)
@@ -210,21 +230,41 @@ class CameraNamespace(_BackendProxy):
     def center_all(self):
         return self.center()
 
-    def left(self, amplitude: int = 250, hold_s: float = 0.15):
+    # left/right/up/down move the head and HOLD by default (hold_s=0.0).
+    # Pass hold_s > 0 to glance and return to centre after that pause.
+    def left(self, amplitude: int = 250, hold_s: float = 0.0):
         backend = self._ensure()
-        return backend.set_yaw(backend.center - self._clamp_amplitude(amplitude))
+        backend.set_yaw(backend.center - self._clamp_amplitude(amplitude))
+        return self._maybe_return_yaw(backend, hold_s)
 
-    def right(self, amplitude: int = 250, hold_s: float = 0.15):
+    def right(self, amplitude: int = 250, hold_s: float = 0.0):
         backend = self._ensure()
-        return backend.set_yaw(backend.center + self._clamp_amplitude(amplitude))
+        backend.set_yaw(backend.center + self._clamp_amplitude(amplitude))
+        return self._maybe_return_yaw(backend, hold_s)
 
-    def up(self, amplitude: int = 250, hold_s: float = 0.15):
+    def up(self, amplitude: int = 250, hold_s: float = 0.0):
         backend = self._ensure()
-        return backend.set_pitch(backend.center + self._clamp_amplitude(amplitude))
+        backend.set_pitch(backend.center + self._clamp_amplitude(amplitude))
+        return self._maybe_return_pitch(backend, hold_s)
 
-    def down(self, amplitude: int = 250, hold_s: float = 0.15):
+    def down(self, amplitude: int = 250, hold_s: float = 0.0):
         backend = self._ensure()
-        return backend.set_pitch(backend.center - self._clamp_amplitude(amplitude))
+        backend.set_pitch(backend.center - self._clamp_amplitude(amplitude))
+        return self._maybe_return_pitch(backend, hold_s)
+
+    @staticmethod
+    def _maybe_return_yaw(backend, hold_s: float):
+        if hold_s and hold_s > 0:
+            time.sleep(float(hold_s))
+            return backend.set_yaw(backend.center)
+        return None
+
+    @staticmethod
+    def _maybe_return_pitch(backend, hold_s: float):
+        if hold_s and hold_s > 0:
+            time.sleep(float(hold_s))
+            return backend.set_pitch(backend.center)
+        return None
 
     def glance_left(self, amplitude: int = 250, hold_s: float = 0.15):
         backend = self._ensure()
@@ -234,17 +274,21 @@ class CameraNamespace(_BackendProxy):
         backend = self._ensure()
         return backend.glance_right(amplitude=self._clamp_amplitude(amplitude), hold_s=hold_s)
 
+    # look_* are GLANCES — move, hold hold_s, return to centre — matching
+    # myRobot.anim.look_* so the same name behaves the same everywhere.
     def look_left(self, amplitude: int = 250, hold_s: float = 0.15):
-        return self.left(amplitude=amplitude, hold_s=hold_s)
+        return self.glance_left(amplitude=amplitude, hold_s=hold_s)
 
     def look_right(self, amplitude: int = 250, hold_s: float = 0.15):
-        return self.right(amplitude=amplitude, hold_s=hold_s)
+        return self.glance_right(amplitude=amplitude, hold_s=hold_s)
 
     def look_up(self, amplitude: int = 250, hold_s: float = 0.15):
-        return self.up(amplitude=amplitude, hold_s=hold_s)
+        backend = self._ensure()
+        return backend.look_up(amplitude=self._clamp_amplitude(amplitude), hold_s=hold_s)
 
     def look_down(self, amplitude: int = 250, hold_s: float = 0.15):
-        return self.down(amplitude=amplitude, hold_s=hold_s)
+        backend = self._ensure()
+        return backend.look_down(amplitude=self._clamp_amplitude(amplitude), hold_s=hold_s)
 
     def nod(self, depth: int = 250, speed_s: Optional[float] = None):
         return self._owner.anim.nod(depth=depth, speed_s=speed_s)
@@ -642,23 +686,40 @@ class SonarNamespace(_BackendProxy):
         return int(backend.wait_for_reading(timeout_s=timeout_s))
 
     def distance_cm(self, filtered: bool = True):
+        """Distance to the nearest object in cm, or None if nothing is in range.
+
+        Returns None (not 0) when the sensor reports no echo, so student code
+        can tell "nothing there" apart from "object touching the sensor".
+        """
         lib = self._lib()
         if lib is not None and hasattr(lib, "get_distance_cm"):
             val = lib.get_distance_cm()
-            return int(val or 0)
+            return None if val is None else int(round(val))
         backend = self._ensure()
-        return int(backend.get_distance_cm(filtered=filtered) or 0)
+        val = backend.get_distance_cm(filtered=filtered)
+        # ROS backend uses 0 to mean "no reading"; surface that as None.
+        return None if not val else int(val)
 
     def distance_mm(self, filtered: bool = True):
+        """Distance to the nearest object in mm, or None if nothing is in range."""
         lib = self._lib()
         if lib is not None and hasattr(lib, "get_distance_mm"):
             val = lib.get_distance_mm()
-            return int(val or 0)
+            return None if val is None else int(val)
         backend = self._ensure()
-        return int(backend.get_distance_mm(filtered=filtered) or 0)
+        val = backend.get_distance_mm(filtered=filtered)
+        return None if not val else int(val)
 
     def is_closer_than(self, threshold_cm: float, filtered: bool = True):
-        return self.distance_cm() <= float(threshold_cm)
+        """True only if something is in range AND closer than threshold_cm.
+
+        Returns False when nothing is in range (distance is None) — so an
+        obstacle-avoidance loop doesn't see a phantom obstacle on no echo.
+        """
+        cm = self.distance_cm(filtered=filtered)
+        if cm is None:
+            return False
+        return cm <= float(threshold_cm)
 
     def source(self) -> str:
         """Return 'i2c', 'ros', or 'none' — how the last reading was obtained."""
@@ -764,18 +825,30 @@ class HelpNamespace:
 
     def camera(self):
         print("""
-  CAMERA SERVO  (amplitude controls how far, depth/width controls swing size)
-    myRobot.camera.center()                         # look straight ahead
-    myRobot.camera.nod(depth=200)                   # nod up and down
+  CAMERA SERVO  (amplitude = how far to move, 0-500)
+
+  Move and STAY there (head holds the new position):
+    myRobot.camera.left(amplitude=300)              # turn left and stay
+    myRobot.camera.right(amplitude=300)             # turn right and stay
+    myRobot.camera.up(amplitude=200)                # tilt up and stay
+    myRobot.camera.down(amplitude=200)              # tilt down and stay
+    myRobot.camera.center()                         # return to straight ahead
+    # tip: add hold_s to move, pause, then come back, e.g.
+    myRobot.camera.left(amplitude=300, hold_s=0.5)  # look left for 0.5s, then centre
+
+  Glance and RETURN to centre automatically:
+    myRobot.camera.glance_left(amplitude=250, hold_s=0.3)   # quick look left
+    myRobot.camera.glance_right(amplitude=250, hold_s=0.3)  # quick look right
+    myRobot.camera.look_left(amplitude=250)         # same as glance_left
+    myRobot.camera.look_right(amplitude=250)        # same as glance_right
+    myRobot.camera.look_up(amplitude=250)           # glance up, return
+    myRobot.camera.look_down(amplitude=250)         # glance down, return
+
+  Expressive motion:
+    myRobot.camera.nod(depth=200)                   # nod up and down (yes)
     myRobot.camera.shake(width=200)                 # shake left and right (no)
     myRobot.camera.wiggle(cycles=2, amplitude=200)  # friendly left-right wiggle
     myRobot.camera.tiny_wiggle(seconds=2.0)         # subtle continuous fidget
-    myRobot.camera.glance_left(amplitude=250, hold_s=0.3)   # quick look left
-    myRobot.camera.glance_right(amplitude=250, hold_s=0.3)  # quick look right
-    myRobot.camera.left(amplitude=300)              # hold looking left
-    myRobot.camera.right(amplitude=300)             # hold looking right
-    myRobot.camera.up(amplitude=200)                # tilt up
-    myRobot.camera.down(amplitude=200)              # tilt down
 """)
 
     def voice(self):
@@ -967,10 +1040,13 @@ class RobotV2:
         }
         return aliases.get(move_name, (move_name,))
 
-    def _build_move_backends(self):
-        self._rm = self._import("robot_moves")
-        self._student_moves = self._import("student_robot_moves")
+    def _apply_movement_config(self):
+        """Push base_speed / rate_hz into the movement backends.
 
+        Called on build AND on every bot() re-creation so a new base_speed
+        actually takes effect (otherwise moves keep using the stale value
+        baked into robot_moves.BASE_SPEED at first import).
+        """
         if self._rm is not None:
             _call_if_callable(getattr(self._rm, "set_base_speed", None), self.base_speed)
             _call_if_callable(getattr(self._rm, "set_rate", None), self.rate_hz)
@@ -984,6 +1060,12 @@ class RobotV2:
                 _call_if_callable(getattr(self._student_moves, "setup", None))
             except Exception as e:
                 self._errors["student_robot_moves"] = str(e)
+
+    def _build_move_backends(self):
+        self._rm = self._import("robot_moves")
+        self._student_moves = self._import("student_robot_moves")
+
+        self._apply_movement_config()
 
         order = [self._student_moves, self._rm] if self.prefer_student_moves else [self._rm, self._student_moves]
         self._move_backends = [b for b in order if b is not None]
@@ -1411,6 +1493,9 @@ def bot(base_speed: float = 300.0, rate_hz: float = 20.0, prefer_student_moves: 
         inst.prefer_student_moves = bool(prefer_student_moves)
         inst.verbose = bool(verbose)
         inst._ensure_backends()
+        # Re-apply the (possibly new) speed/rate to the existing backends so a
+        # second bot(base_speed=...) call isn't silently ignored.
+        inst._apply_movement_config()
         return inst
 
 

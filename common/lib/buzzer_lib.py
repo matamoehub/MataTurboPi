@@ -10,7 +10,7 @@ Examples:
     bz.play_notes("C4:1 D4:1 E4:2 R:1 C5:2", bpm=120)
     bz.play_notes_music_mode("C4:1 D4:1 E4:2", bpm=120)
 """
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 
 import os
@@ -272,9 +272,27 @@ class Buzzer(Node):
         finally:
             self.off()
 
-    def play_melody(self, notes: List[Tuple[str, float]], bpm: int = DEFAULT_BPM) -> None:
+    def play_melody(self, notes, bpm: int = DEFAULT_BPM) -> None:
+        """Play a melody from a list of notes.
+
+        Each item may be any of:
+          - a (note, beats) tuple:        ("C4", 0.5)
+          - a bare note string (1 beat):  "C4"
+          - a "NOTE:BEATS" string:        "C4:0.5"
+
+        So play_melody(["C4", "E4", "G4", "C5"]) works the same as
+        play_melody([("C4", 1.0), ("E4", 1.0), ...]).
+        """
         try:
-            for note, beats in notes:
+            for item in notes:
+                if isinstance(item, str):
+                    if ":" in item:
+                        note, beats_txt = item.split(":", 1)
+                        beats = float(beats_txt)
+                    else:
+                        note, beats = item, 1.0
+                else:
+                    note, beats = item
                 self.play_note(note, beats=float(beats), bpm=bpm)
         finally:
             self.off()

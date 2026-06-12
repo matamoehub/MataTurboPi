@@ -1,4 +1,4 @@
-__version__ = "1.2.2"
+__version__ = "1.2.3"
 
 # camera_lib.py
 import os
@@ -45,8 +45,16 @@ class Camera(Node):
         self.shake_id = int(shake_id)
         self.center = int(center)
         self.speed_s = float(speed_s)
-        self.min_pos = int(min_pos)
-        self.max_pos = int(max_pos)
+        # Pan (yaw / shake) travel limits.
+        self.min_pos = int(os.environ.get("CAM_MIN_POS", min_pos))
+        self.max_pos = int(os.environ.get("CAM_MAX_POS", max_pos))
+        # Tilt (pitch / nod) limits. The URDF gives the tilt joint an ASYMMETRIC
+        # mechanical range (~-22deg..+108deg) vs the symmetric pan joint, so the
+        # tilt servo may need a different pulse range. Defaults to the pan range
+        # so behaviour is unchanged until ops sets CAM_NOD_MIN_POS/MAX_POS after
+        # a hardware test (drive servo 1 to each limit and listen for a stall).
+        self.nod_min_pos = int(os.environ.get("CAM_NOD_MIN_POS", self.min_pos))
+        self.nod_max_pos = int(os.environ.get("CAM_NOD_MAX_POS", self.max_pos))
 
     def _wait_for_subscriber(self, settle_s: float = 1.5):
         """
@@ -58,7 +66,11 @@ class Camera(Node):
         time.sleep(settle_s)
 
     # ------------ low-level ------------
-    def _clamp(self, pos: int) -> int:
+    def _clamp(self, pos: int, sid: Optional[int] = None) -> int:
+        # Tilt (nod) servo may have its own asymmetric range; pan uses the
+        # shared range. Defaults make both identical unless env overrides set.
+        if sid is not None and sid == self.nod_id:
+            return max(self.nod_min_pos, min(self.nod_max_pos, int(pos)))
         return max(self.min_pos, min(self.max_pos, int(pos)))
 
     def _send(self, sid: int, pos: int, speed_s: Optional[float] = None):
@@ -67,7 +79,7 @@ class Camera(Node):
 
         st = PWMServoState()
         st.id = [int(sid)]
-        st.position = [self._clamp(int(pos))]
+        st.position = [self._clamp(int(pos), sid)]
 
         msg.state = [st]
         self.pub.publish(msg)

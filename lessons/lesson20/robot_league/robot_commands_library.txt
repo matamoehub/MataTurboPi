@@ -65,10 +65,12 @@ myRobot.eyes.off()
 Camera
 myRobot.camera.center()
 myRobot.camera.center_all()
-myRobot.camera.left(amplitude=250, hold_s=0.15)
-myRobot.camera.right(amplitude=250, hold_s=0.15)
-myRobot.camera.up(amplitude=250, hold_s=0.15)
-myRobot.camera.down(amplitude=250, hold_s=0.15)
+# left/right/up/down move and HOLD (pass hold_s>0 to glance back to centre)
+myRobot.camera.left(amplitude=250, hold_s=0.0)
+myRobot.camera.right(amplitude=250, hold_s=0.0)
+myRobot.camera.up(amplitude=250, hold_s=0.0)
+myRobot.camera.down(amplitude=250, hold_s=0.0)
+# glance_*/look_* move, pause hold_s, then return to centre
 myRobot.camera.glance_left(amplitude=250, hold_s=0.15)
 myRobot.camera.glance_right(amplitude=250, hold_s=0.15)
 myRobot.camera.look_left(amplitude=250, hold_s=0.15)
@@ -175,9 +177,12 @@ Aliases
 myRobot.ultrasonic.distance_cm()
 myRobot.ultra.distance_cm()
 
+Note: distance_cm()/distance_mm() return None when nothing is in range.
+      is_closer_than() returns False when nothing is in range.
+
 Examples
 distance_cm = myRobot.sonar.distance_cm(filtered=True)
-if 0 < distance_cm <= 10:
+if distance_cm is not None and distance_cm <= 10:
     myRobot.stop()
 
 Line / Tracking / Avoidance / QR / Infrared
@@ -202,9 +207,8 @@ myRobot = bot(base_speed=300)
 while True:
     distance_cm = myRobot.sonar.distance_cm(filtered=True)
 
-    if distance_cm == 0:
-        myRobot.move.forward(0.1)
-    elif distance_cm > 10:
+    if distance_cm is None or distance_cm > 10:
+        # Nothing in range, or the object is still far away — keep going.
         myRobot.move.forward(0.08)
     else:
         myRobot.stop()

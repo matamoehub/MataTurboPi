@@ -9,11 +9,9 @@ import hashlib
 import json
 import os
 import platform
-import queue
 import shutil
 import subprocess
 import tempfile
-import threading
 import time
 from pathlib import Path
 from typing import Optional
@@ -163,102 +161,3 @@ def say(
         p.wait()
     return path
 
-
-class TTSJob:
-    def __init__(
-        self,
-        text: str,
-        when: float,
-        voice: str,
-        length_scale: str,
-        sentence_silence: str,
-        device: Optional[str],
-        block: bool,
-    ):
-        self.text = text
-        self.when = float(when)
-        self.voice = voice
-        self.length_scale = length_scale
-        self.sentence_silence = sentence_silence
-        self.device = device
-        self.block = block
-
-
-class TTSQueue:
-    def __init__(
-        self,
-        default_voice: Optional[str] = None,
-        default_length: str = "1.00",
-        default_sil: str = "0.12",
-        device: Optional[str] = None,
-    ):
-        self.default_voice = (default_voice or DEFAULT_VOICE).strip() or DEFAULT_VOICE
-        self.default_length = str(default_length)
-        self.default_sil = str(default_sil)
-        self.device = device
-
-        self.q = queue.PriorityQueue()
-        self._idx = 0
-        self._stop = threading.Event()
-        self._thr = threading.Thread(target=self._run, daemon=True)
-        self._thr.start()
-
-    def schedule(
-        self,
-        text: str,
-        delay_s: float = 0.0,
-        voice: Optional[str] = None,
-        length_scale: Optional[str] = None,
-        sentence_silence: Optional[str] = None,
-        block: bool = True,
-    ):
-        t = time.time() + float(delay_s)
-        job = TTSJob(
-            text=text,
-            when=t,
-            voice=voice or self.default_voice,
-            length_scale=length_scale or self.default_length,
-            sentence_silence=sentence_silence or self.default_sil,
-            device=self.device,
-            block=block,
-        )
-        self.q.put((t, self._idx, job))
-        self._idx += 1
-
-    def _run(self):
-        while not self._stop.is_set():
-            try:
-                when, _, job = self.q.get(timeout=0.1)
-            except queue.Empty:
-                continue
-
-            dt = when - time.time()
-            if dt > 0:
-                time.sleep(dt)
-
-            try:
-                path = pre_synth(
-                    job.text,
-                    voice=job.voice,
-                    length_scale=job.length_scale,
-                    sentence_silence=job.sentence_silence,
-                )
-                p = play_path_async(path, device=job.device)
-                if job.block:
-                    p.wait()
-            except Exception as e:
-                print("[TTSQueue] error:", e)
-
-    def stop(self):
-        self._stop.set()
-        self._thr.join(timeout=1.0)
-
-
-_ttsq: Optional[TTSQueue] = None
-
-
-def get_tts_queue() -> TTSQueue:
-    global _ttsq
-    if _ttsq is None:
-        _ttsq = TTSQueue(default_voice=None, default_length="0.98", default_sil="0.08", device=None)
-    return _ttsq

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 # robot_moves.py — direct motor moves + diagonals + wheel-level drift + horn + RobotMoves class
 from typing import List, Tuple, Optional
@@ -137,6 +137,11 @@ def drift_left(seconds: float = None, speed: float = None, turn_blend: float = N
     """
     Drift left in an arc.
     turn_blend: 0..1 (0 = pure strafe left, 1 = heavy spin)
+
+    Classroom shorthand: a 2nd POSITIONAL argument in -1..1 is treated as
+    turn_blend, NOT speed — so drift_left(1.0, 0.55) means
+    seconds=1.0, turn_blend=0.55. To set speed positionally use a value
+    outside -1..1, or pass speed=... / turn_blend=... by keyword to be explicit.
     """
     # Classroom-friendly shorthand:
     # drift_left(seconds, 0.55) -> treat 2nd positional as turn_blend.
@@ -161,6 +166,12 @@ def drift_left(seconds: float = None, speed: float = None, turn_blend: float = N
 def drift_right(seconds: float = None, speed: float = None, turn_blend: float = None):
     """
     Drift right in an arc.
+    turn_blend: 0..1 (0 = pure strafe right, 1 = heavy spin)
+
+    Classroom shorthand: a 2nd POSITIONAL argument in -1..1 is treated as
+    turn_blend, NOT speed — so drift_right(1.0, 0.55) means
+    seconds=1.0, turn_blend=0.55. Pass speed=... / turn_blend=... by keyword
+    to be explicit.
     """
     # Classroom-friendly shorthand:
     # drift_right(seconds, 0.55) -> treat 2nd positional as turn_blend.
