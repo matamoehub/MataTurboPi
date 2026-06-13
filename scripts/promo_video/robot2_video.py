@@ -50,6 +50,14 @@ def _wait_for_drift_cue(timeout_s=30.0):
     except Exception:
         print("  (no cue received — drifting on fallback timer)\n")
 
+
+def _signal_done():
+    """Tell Robot 1 we've finished, so Amy stops her dance and settles."""
+    try:
+        _sock.sendall(b'DONE')
+    except Exception:
+        pass
+
 myRobot = bot(base_speed=300)
 myRobot.voice.select("ryan")
 #myRobot.voice.set_volume(90)
@@ -197,9 +205,14 @@ myRobot.camera.center()
 myRobot.camera.wiggle(cycles=4, amplitude=220)
 myRobot.buzzer.play_notes("C5:1 E5:1 G5:2", bpm=160)
 myRobot.voice.say("Now that is how you drift!", block=True)
+_signal_done()          # ← tell Amy she can settle out of her dance now
 time.sleep(0.5)
 
 myRobot.move.stop()
 myRobot.eyes.off()
 myRobot.camera.center()
+try:
+    _sock.close()
+except Exception:
+    pass
 print("Robot 2 done.")

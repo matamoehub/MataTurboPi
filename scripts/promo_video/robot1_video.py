@@ -80,6 +80,53 @@ def _cue_drift():
     except Exception as e:
         print(f"  (drift cue not sent — Robot 2 will fall back to its timer: {e})")
 
+
+def _ryan_done():
+    """Non-blocking check: has Ryan signalled he's finished (b'DONE')?"""
+    try:
+        _conn.setblocking(False)
+        return bool(_conn.recv(16))
+    except (BlockingIOError, InterruptedError):
+        return False
+    except Exception:
+        return True   # link dropped — treat as done so Amy doesn't loop forever
+    finally:
+        try:
+            _conn.setblocking(True)
+        except Exception:
+            pass
+
+
+def _dance_until_ryan_done(max_s=45.0):
+    """Keep Amy lively — blinking + camera moves — until Ryan finishes drifting.
+
+    Loops a rotating palette of eye colours and camera gestures, checking after
+    each beat whether Ryan has sent 'DONE'. max_s is a safety cap so a dropped
+    link can't trap her here forever.
+    """
+    palette = [(255, 0, 100), (0, 255, 100), (255, 180, 0), (0, 180, 255),
+               (255, 0, 255), (255, 120, 0), (255, 255, 0), (0, 255, 0),
+               (0, 80, 255), (160, 0, 255)]
+    moves = [
+        lambda: myRobot.camera.wiggle(cycles=2, amplitude=180),
+        lambda: myRobot.camera.nod(depth=200),
+        lambda: myRobot.camera.glance_left(amplitude=200, hold_s=0.2),
+        lambda: myRobot.camera.glance_right(amplitude=200, hold_s=0.2),
+        lambda: myRobot.camera.tiny_wiggle(seconds=0.6, amplitude=120),
+        lambda: myRobot.camera.nod(depth=150),
+    ]
+    myRobot.anim.start_blinking(every_s=1.0, blank_s=0.12)
+    end = time.time() + max_s
+    i = 0
+    while time.time() < end:
+        myRobot.eyes.color(*palette[i % len(palette)])
+        moves[i % len(moves)]()
+        i += 1
+        if _ryan_done():
+            break
+    myRobot.anim.stop_blinking()
+
+
 myRobot = bot(base_speed=300)
 myRobot.voice.select("amy")
 myRobot.voice.set_volume(90)
@@ -219,22 +266,18 @@ myRobot.move.left(seconds=0.35, speed=280)
 myRobot.camera.wiggle(cycles=2, amplitude=200)
 myRobot.move.right(seconds=0.35, speed=280)
 
-myRobot.eyes.color(255, 255, 255)
-myRobot.camera.glance_left(amplitude=200, hold_s=0.5)
-myRobot.anim.stop_blinking()
-myRobot.anim.start_blinking(every_s=0.5, blank_s=0.1)
-time.sleep(1.2)
-myRobot.anim.stop_blinking()
+# ── KEEP DANCING — blink + camera moves until Ryan finishes his drift ─────────
+# Driven by Ryan's 'DONE' signal, not a timer, so Amy stays lively for exactly
+# as long as Ryan drifts however long that turns out to be.
+_dance_until_ryan_done()
+
+# ── SETTLE — Ryan is done, both wind down together ───────────────────────────
 myRobot.eyes.color(0, 255, 200)
 myRobot.camera.center()
-
-# ── SIGN OFF ──────────────────────────────────────────────────────────────────
-time.sleep(1.5)
+time.sleep(0.5)
 myRobot.eyes.color(0, 200, 150)
-time.sleep(0.3)
-myRobot.eyes.color(0, 255, 200)
 myRobot.camera.nod(depth=160)
-time.sleep(0.8)
+time.sleep(0.6)
 
 myRobot.move.stop()
 myRobot.eyes.off()
