@@ -66,9 +66,27 @@ def _sync_leader(port=9877):
 
 _conn, _listen_sock = _sync_leader()
 
+
+def _cue_scene():
+    """Release Robot 2 to start the next scene in lockstep (sent at each slate)."""
+    try:
+        _conn.sendall(b'SCENE'.ljust(16))
+    except Exception as e:
+        print(f"  (scene cue not sent — Robot 2 may run free: {e})")
+
+
 myRobot = bot(base_speed=300)
 myRobot.voice.select("amy")
 myRobot.voice.set_volume(90)
+
+# ── MOTOR WARM-UP — prime the motors off-camera before any take ──────────────
+# The mecanum motors draw a stall/inrush spike on the first cold move. The
+# library auto-primes on first move, but do it here during setup so it never
+# happens mid-take (no sluggish or jerky first move in a scene).
+myRobot.move.forward(seconds=0.1, speed=120)
+myRobot.move.backward(seconds=0.1, speed=120)
+myRobot.move.stop()
+
 
 def cut():
     """The 'that's a cut!' beep that ends a flubbed take — Toy Story style.
@@ -95,10 +113,11 @@ def slate():
     myRobot.camera.center()
     myRobot.anim.stop_blinking()
     myRobot.eyes.color(255, 255, 255)
-    myRobot.buzzer.beep(freq=2000, duration_s=0.15)  # clapper snap
+    myRobot.buzzer.beep(freq=2000, duration_s=0.15)  # clapper snap — Robot 1 ONLY
     time.sleep(0.3)
     myRobot.eyes.color(0, 255, 200)
     time.sleep(2.0)
+    _cue_scene()                    # release Robot 2 — both start the scene together
 
 # ── SCENE 1 — LINE FLUB ──────────────────────────────────────────────────────
 print("Scene 1 — Line Flub")
