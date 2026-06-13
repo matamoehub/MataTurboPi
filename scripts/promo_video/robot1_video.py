@@ -166,7 +166,7 @@ myRobot.eyes.color(100, 200, 255)
 myRobot.camera.glance_left(amplitude=150, hold_s=0.2)
 myRobot.voice.say("A free after-school programme for Wellington secondary school students,", block=True)
 myRobot.camera.glance_left(amplitude=120, hold_s=0.2)
-myRobot.voice.say("run by Mata moe E, and Victoria University", block=True)
+myRobot.voice.say("run by Mata mo-e, and Victoria University", block=True)
 myRobot.camera.center()
 time.sleep(0.2)
 
@@ -265,6 +265,7 @@ myRobot.eyes.color(0, 255, 200)
 myRobot.move.left(seconds=0.35, speed=280)
 myRobot.camera.wiggle(cycles=2, amplitude=200)
 myRobot.move.right(seconds=0.35, speed=280)
+myRobot.move.turn_right(seconds=0.7, speed=340)
 
 # ── KEEP DANCING — blink + camera moves until Ryan finishes his drift ─────────
 # Driven by Ryan's 'DONE' signal, not a timer, so Amy stays lively for exactly
