@@ -28,7 +28,7 @@ HYPNO_MP3 = "hypno.mp3"
 SOUND_DIRS = [
     "/opt/robot/sounds",
     str(Path.home() / "sounds"),
-    str(Path(__file__).resolve().parent / "sounds"),
+    "sounds",        # ./sounds relative to the notebook's working dir
     ".",
 ]
 
