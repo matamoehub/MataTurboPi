@@ -2,21 +2,63 @@
 ROBOT 2 — RYAN (Turbo) — OUTTAKES
 Run this on Robot 2. Each scene is self-contained — you can re-run
 individual scenes by calling slate() then the scene block.
+
+SYNC: Robot 2 is the FOLLOWER (same handshake as the main video).
+  1. Run Robot 1's outtakes first — it prints its IP.
+  2. Paste that IP below as ROBOT1_IP, then run this.
+  3. Wait — Robot 2 connects and both start when Robot 1 presses Enter.
 """
 from lesson_header import *
 import time
+import socket
+
+# ── PASTE ROBOT 1'S IP HERE ───────────────────────────────────────────────────
+ROBOT1_IP = "192.168.1.100"   # ← change this to Robot 1's IP each session
+
+# ── SYNC — connect to Robot 1 and wait for the GO signal ─────────────────────
+def _sync_follower(ip, port=9877):
+    print(f"  Connecting to Robot 1 at {ip}...")
+    s = socket.socket()
+    s.connect((ip, port))
+    print(f"  Connected. Waiting for Robot 1 to press Enter...")
+    s.recv(16)   # 'GO'
+    print("  GO!\n")
+    # Connection kept open — re-use it for scene cues if you ever want them
+    # (same pattern as the video's DRIFT/DONE signals).
+    return s
+
+_sock = _sync_follower(ROBOT1_IP)
 
 myRobot = bot(base_speed=300)
 myRobot.voice.select("ryan")
 myRobot.voice.set_volume(90)
 
+def cut():
+    """The 'that's a cut!' beep that ends a flubbed take — Toy Story style.
+
+    A descending two-tone buzz with red eyes: the clear 'nope, cut it' signal.
+    """
+    myRobot.move.stop()
+    myRobot.anim.stop_blinking()
+    myRobot.eyes.color(255, 40, 0)                   # red = cut
+    myRobot.buzzer.beep(freq=1500, duration_s=0.10)
+    myRobot.buzzer.beep(freq=750,  duration_s=0.28)  # drop down: "ehhh, cut"
+    time.sleep(0.3)
+
+
+_first_slate = True
+
 def slate():
-    """Clapper-board reset between scenes."""
+    """Clapper-board between takes: cut the previous flub, then slate the next."""
+    global _first_slate
+    if not _first_slate:
+        cut()                       # end the take we just flubbed
+    _first_slate = False
     myRobot.move.stop()
     myRobot.camera.center()
     myRobot.anim.stop_blinking()
     myRobot.eyes.color(255, 255, 255)
-    myRobot.buzzer.beep(freq=2000, duration_s=0.15)
+    myRobot.buzzer.beep(freq=2000, duration_s=0.15)  # clapper snap
     time.sleep(0.3)
     myRobot.eyes.color(0, 255, 200)
     time.sleep(2.0)
@@ -208,7 +250,12 @@ myRobot.camera.shake(width=200)
 time.sleep(0.5)
 
 # ── WRAP ─────────────────────────────────────────────────────────────────────
+cut()                       # cut the final take too
 myRobot.move.stop()
 myRobot.eyes.off()
 myRobot.camera.center()
+try:
+    _sock.close()
+except Exception:
+    pass
 print("Robot 2 outtakes done.")
