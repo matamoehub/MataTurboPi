@@ -28,11 +28,27 @@ def _sync_follower(ip, port=9877):
     s = socket.socket()
     s.connect((ip, port))
     print(f"  Connected. Waiting for Robot 1 to press Enter...")
-    s.recv(10)
-    s.close()
+    s.recv(16)   # 'GO'
     print("  GO!\n")
+    # Keep the socket OPEN — Robot 1 sends a second cue ('DRIFT') the instant
+    # Amy says "You may drift", so Ryan launches exactly on her word.
+    return s
 
-_sync_follower(ROBOT1_IP)
+_sock = _sync_follower(ROBOT1_IP)
+
+
+def _wait_for_drift_cue(timeout_s=30.0):
+    """Block until Amy's 'You may drift' cue arrives over the socket.
+
+    Falls back after timeout_s so the demo never hangs if the link drops.
+    """
+    print("  Poised — waiting for Amy's 'You may drift' cue...")
+    try:
+        _sock.settimeout(timeout_s)
+        _sock.recv(16)   # 'DRIFT'
+        print("  Cue received — DRIFT!\n")
+    except Exception:
+        print("  (no cue received — drifting on fallback timer)\n")
 
 myRobot = bot(base_speed=300)
 myRobot.voice.select("ryan")
@@ -136,20 +152,12 @@ myRobot.camera.wiggle(cycles=1, amplitude=200)   # was cycles=2 — ask sooner
 myRobot.voice.say("Can I drift yet?", block=True)
 myRobot.camera.nod(depth=150)            # pleading nod at Amy
 
-# ── WAIT FOR AMY'S "You may drift." then go ──────────────────────────────────
-# This is the call-and-response buffer: Turbo holds, eager, until Amy gives
-# permission. TUNING KNOB → if Turbo drifts BEFORE Amy says "You may drift",
-# raise DRIFT_CUE_WAIT; if there's an awkward gap AFTER she says it, lower it.
-DRIFT_CUE_WAIT = 0.8
+# ── PRE-DRIFT FANFARE — get eager and POISED, then hold for the cue ───────────
+# All of Ryan's "revving up" happens BEFORE he waits, so the moment Amy's cue
+# lands he launches straight into the drift with no dead air.
 myRobot.anim.start_blinking(every_s=2.5, blank_s=0.25)
 myRobot.eyes.color(0, 255, 0)
-myRobot.camera.nod(depth=220)
-time.sleep(DRIFT_CUE_WAIT)
-myRobot.eyes.color(255, 255, 0)
-myRobot.camera.wiggle(cycles=1, amplitude=180)   # was cycles=2; dropped a nod + 2 sleeps
-
-# ── PRE-DRIFT FANFARE ─────────────────────────────────────────────────────────
-myRobot.anim.stop_blinking()
+myRobot.camera.wiggle(cycles=1, amplitude=180)
 myRobot.eyes.color(255, 255, 255)
 myRobot.camera.glance_right(amplitude=200, hold_s=0.3)  # look at audience
 myRobot.move.forward(seconds=0.1)
@@ -157,7 +165,11 @@ myRobot.move.backward(seconds=0.1)
 myRobot.move.forward(seconds=0.1)
 myRobot.move.backward(seconds=0.1)
 myRobot.buzzer.play_notes("C4:0.5 E4:0.5 G4:1", bpm=200)
-time.sleep(1.2)
+myRobot.anim.stop_blinking()
+myRobot.eyes.color(255, 255, 0)          # locked, ready
+
+# ── WAIT FOR AMY'S CUE, THEN DRIFT ON HER WORD ───────────────────────────────
+_wait_for_drift_cue()
 
 # ── DRIFT SEQUENCE ────────────────────────────────────────────────────────────
 myRobot.eyes.color(255, 165, 0)

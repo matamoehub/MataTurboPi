@@ -64,11 +64,21 @@ def _sync_leader(port=9877):
     print(f"  Robot 2 connected from {addr[0]}. Press Enter to start BOTH robots...")
     input()
     conn.sendall(b'GO')
-    conn.close()
-    s.close()
     print("  GO!\n")
+    # Keep the connection OPEN — we send a second cue ('DRIFT') the instant Amy
+    # says "You may drift", so Robot 2 launches exactly on her word instead of
+    # guessing with sleep timers that drift apart over the ~40s intro.
+    return conn, s
 
-_sync_leader()
+_conn, _listen_sock = _sync_leader()
+
+
+def _cue_drift():
+    """Signal Robot 2 to drift NOW. Sent as Amy speaks 'You may drift'."""
+    try:
+        _conn.sendall(b'DRIFT')
+    except Exception as e:
+        print(f"  (drift cue not sent — Robot 2 will fall back to its timer: {e})")
 
 myRobot = bot(base_speed=300)
 myRobot.voice.select("amy")
@@ -175,6 +185,7 @@ time.sleep(0.35)
 myRobot.eyes.color(255, 255, 255)
 myRobot.camera.nod(depth=150)
 time.sleep(0.25)
+_cue_drift()                          # ← Ryan starts drifting on this word
 myRobot.voice.say("You may drift.", block=True)
 time.sleep(0.4)
 
@@ -228,4 +239,9 @@ time.sleep(0.8)
 myRobot.move.stop()
 myRobot.eyes.off()
 myRobot.camera.center()
+try:
+    _conn.close()
+    _listen_sock.close()
+except Exception:
+    pass
 print("Robot 1 done.")
