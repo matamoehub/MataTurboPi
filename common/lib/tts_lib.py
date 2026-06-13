@@ -1,4 +1,4 @@
-__version__ = "1.2.4"
+__version__ = "1.3.0"
 
 # tts_lib.py
 # Piper TTS helper for Matamoe robots (Python 3.10)
@@ -26,8 +26,38 @@ VOICE_MAP = {
     "ryan": ("en_US-ryan-high.onnx", "en_US-ryan-high.onnx.json"),
     "amy":  ("en_US-amy-medium.onnx", "en_US-amy-medium.onnx.json"),
     "aru":  ("en_GB-aru-medium.onnx", "en_GB-aru-medium.onnx.json"),
-    # Add more voices you download into VOICE_DIR
+    # More voices are auto-discovered from VOICE_DIR (see below).
 }
+
+
+def _discover_installed_voices() -> None:
+    """Register any *.onnx voice present in VOICE_DIR that isn't already mapped.
+
+    A voice file dropped into VOICE_DIR is then usable by its short name —
+    the middle token of the Piper filename, e.g.
+        en_GB-alba-medium.onnx  ->  "alba"
+    — with no code change. Requires the matching <name>.onnx.json to be present.
+
+    Curated names in VOICE_MAP above win if a key collides.
+    """
+    try:
+        entries = set(os.listdir(VOICE_DIR))
+    except Exception:
+        return
+    mapped_files = {model for model, _cfg in VOICE_MAP.values()}
+    for fname in sorted(entries):
+        if not fname.endswith(".onnx") or fname in mapped_files:
+            continue
+        cfg = fname + ".json"
+        if cfg not in entries:
+            continue  # need both the model and its config
+        parts = fname[:-len(".onnx")].split("-")
+        key = (parts[1] if len(parts) >= 2 else parts[0]).strip().lower()
+        if key and key not in VOICE_MAP:
+            VOICE_MAP[key] = (fname, cfg)
+
+
+_discover_installed_voices()
 
 DEFAULT_VOICE = "ryan"
 PIPER_BIN_ENV = "PIPER_BIN"
