@@ -109,7 +109,7 @@ myRobot.eyes.color(100, 200, 255)
 myRobot.camera.glance_left(amplitude=150, hold_s=0.2)
 myRobot.voice.say("A free after-school programme for Wellington secondary school students,", block=True)
 myRobot.camera.glance_left(amplitude=120, hold_s=0.2)
-myRobot.voice.say("run by Mata moe E, based at Scots College.", block=True)
+myRobot.voice.say("run by Mata moe E, and Victoria University", block=True)
 myRobot.camera.center()
 time.sleep(0.2)
 
