@@ -125,29 +125,28 @@ time.sleep(1.5)
 # Amy is now glancing at Ryan + doing her dramatic cue setup
 myRobot.anim.stop_blinking()
 myRobot.eyes.color(0, 150, 255)
-myRobot.camera.tiny_wiggle(seconds=0.8, amplitude=90)
+myRobot.camera.tiny_wiggle(seconds=0.4, amplitude=90)   # was 0.8 — tighter fidget
 myRobot.voice.say("You just bring the curiosity!", block=True)
-time.sleep(0.3)
 
-# ── ASKING TO DRIFT — right after the curiosity line ─────────────────────────
+# ── ASKING TO DRIFT — go straight into the question, no dead air ──────────────
 # Amy is now saying "Now." and about to say "You may drift."
 myRobot.eyes.color(255, 165, 0)
 myRobot.camera.center()                  # look straight at Amy
-myRobot.camera.wiggle(cycles=2, amplitude=200)
+myRobot.camera.wiggle(cycles=1, amplitude=200)   # was cycles=2 — ask sooner
 myRobot.voice.say("Can I drift yet?", block=True)
 myRobot.camera.nod(depth=150)            # pleading nod at Amy
-time.sleep(0.3)
 
-# ── BUILDING ANTICIPATION — Amy says "You may drift." ────────────────────────
+# ── WAIT FOR AMY'S "You may drift." then go ──────────────────────────────────
+# This is the call-and-response buffer: Turbo holds, eager, until Amy gives
+# permission. TUNING KNOB → if Turbo drifts BEFORE Amy says "You may drift",
+# raise DRIFT_CUE_WAIT; if there's an awkward gap AFTER she says it, lower it.
+DRIFT_CUE_WAIT = 0.8
 myRobot.anim.start_blinking(every_s=2.5, blank_s=0.25)
 myRobot.eyes.color(0, 255, 0)
-myRobot.camera.nod(depth=200)
-time.sleep(0.5)
-myRobot.camera.nod(depth=250)
-time.sleep(0.4)
+myRobot.camera.nod(depth=220)
+time.sleep(DRIFT_CUE_WAIT)
 myRobot.eyes.color(255, 255, 0)
-myRobot.camera.wiggle(cycles=2, amplitude=180)
-time.sleep(0.4)
+myRobot.camera.wiggle(cycles=1, amplitude=180)   # was cycles=2; dropped a nod + 2 sleeps
 
 # ── PRE-DRIFT FANFARE ─────────────────────────────────────────────────────────
 myRobot.anim.stop_blinking()
