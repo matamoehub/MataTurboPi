@@ -13,11 +13,47 @@ SYNC: Robot 1 is the LEADER.
 from lesson_header import *
 import time
 import socket
+import subprocess
+
+
+def _detect_lan_ips():
+    """Return this robot's real non-loopback IPv4 addresses, best route first.
+
+    Do NOT use socket.gethostbyname(socket.gethostname()) — on the Pi's OS the
+    hostname maps to 127.0.1.1 in /etc/hosts, so it returns loopback and Robot 2
+    ends up dialling its own machine.
+    """
+    ips = []
+    # `hostname -I` lists every assigned address; works with no network route.
+    try:
+        out = subprocess.run(["hostname", "-I"], capture_output=True, text=True, timeout=2)
+        ips = [x for x in out.stdout.split() if x.count(".") == 3 and not x.startswith("127.")]
+    except Exception:
+        pass
+    # UDP-connect trick: picks the IP of the default-route (internet-facing) NIC.
+    # No packets are actually sent for a UDP connect.
+    try:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        probe.connect(("8.8.8.8", 80))
+        primary = probe.getsockname()[0]
+        probe.close()
+        if primary.count(".") == 3 and not primary.startswith("127."):
+            ips = [primary] + [x for x in ips if x != primary]
+    except Exception:
+        pass
+    return ips
+
 
 # ── SYNC — Robot 1 waits for Robot 2 to connect, then fires both ─────────────
 def _sync_leader(port=9877):
-    ip = socket.gethostbyname(socket.gethostname())
-    print(f"\n  Robot 1 IP: {ip}")
+    ips = _detect_lan_ips()
+    if ips:
+        print(f"\n  Robot 1 IP: {ips[0]}")
+        if len(ips) > 1:
+            print(f"  (other addresses: {', '.join(ips[1:])} — use the one on the same Wi-Fi as Robot 2)")
+    else:
+        fallback = socket.gethostbyname(socket.gethostname())
+        print(f"\n  Robot 1 IP: {fallback}   ⚠ could not detect a LAN IP — if this is 127.x run `hostname -I` in a terminal")
     print(f"  Paste that IP into Robot 2's notebook now, then run it.")
     s = socket.socket()
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -25,7 +61,7 @@ def _sync_leader(port=9877):
     s.listen(1)
     print(f"  Waiting for Robot 2 to connect...")
     conn, addr = s.accept()
-    print(f"  Robot 2 connected. Press Enter to start BOTH robots...")
+    print(f"  Robot 2 connected from {addr[0]}. Press Enter to start BOTH robots...")
     input()
     conn.sendall(b'GO')
     conn.close()
