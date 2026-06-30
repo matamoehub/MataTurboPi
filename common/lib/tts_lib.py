@@ -1,4 +1,4 @@
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 # tts_lib.py
 # Piper TTS helper for Matamoe robots (Python 3.10)
@@ -527,6 +527,80 @@ def play_wav_async(path: str, device: Optional[str] = None):
 
 def play_path_async(path: str, device: Optional[str] = None):
     return play_wav_async(path, device=device)
+
+
+def say_piped(
+    text: str,
+    voice: Optional[str] = None,
+    device: Optional[str] = None,
+    length_scale: str = "1.00",
+    sentence_silence: str = "0.12",
+    block: bool = True,
+) -> Optional[tuple]:
+    """Synthesise and play without writing to disk.
+
+    Piper writes WAV to stdout; aplay reads from stdin. The two processes
+    run in parallel so playback starts before synthesis is complete —
+    the first word is audible while Piper is still generating the rest.
+
+    Compared to say() this avoids:
+      - The /tmp/piper-*.wav write (real disk I/O on this Pi image)
+      - The aplay file-open read
+      - The full synthesis-before-playback wait on long sentences
+
+    Returns (piper_proc, aplay_proc) when block=False so the caller can
+    wait on them or kill them. Returns None when block=True.
+
+    Falls back to say() transparently on any subprocess error.
+    """
+    try:
+        model, config = _voice_paths(voice)
+        piper_bin = _resolve_piper_bin()
+        _require_aplay()
+        ensure_default_volume()
+
+        piper_cmd = [
+            piper_bin,
+            "-m", model,
+            "-c", config,
+            "--length-scale", str(length_scale),
+            "--sentence-silence", str(sentence_silence),
+            "--output-file", "-",   # WAV stream to stdout
+        ]
+        aplay_cmd = ["aplay", "-q"]
+        if device:
+            aplay_cmd += ["-D", device]
+        aplay_cmd.append("-")       # read WAV from stdin
+
+        piper = subprocess.Popen(
+            piper_cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            cwd=_safe_workdir(),
+        )
+        aplay = subprocess.Popen(
+            aplay_cmd,
+            stdin=piper.stdout,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        # Close our copy of piper's stdout so piper gets SIGPIPE if aplay exits
+        piper.stdout.close()
+        piper.stdin.write((text.strip() + "\n").encode("utf-8"))
+        piper.stdin.close()
+
+        if block:
+            aplay.wait()
+            piper.wait()
+            return None
+        return piper, aplay
+
+    except Exception as e:
+        print(f"[tts_lib] say_piped fallback to say(): {e}")
+        say(text, voice=voice, device=device,
+            length_scale=length_scale, sentence_silence=sentence_silence, block=block)
+        return None
 
 
 def warm_piper(voice: Optional[str] = None):
