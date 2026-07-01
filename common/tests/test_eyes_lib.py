@@ -144,6 +144,9 @@ def _install_smbus2_stub(calls: list) -> None:
         def write_byte_data(self, addr, reg, val):
             calls.append((addr, reg, val))
 
+        def read_byte(self, addr):
+            return 0
+
     smbus2_mod.SMBus = _SMBus
     sys.modules["smbus2"] = smbus2_mod
 

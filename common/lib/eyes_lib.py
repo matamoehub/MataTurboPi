@@ -1,4 +1,4 @@
-__version__ = "2.0.3"
+__version__ = "2.0.4"
 
 # eyes_lib.py
 """RGB eye LED control for Hiwonder TurboPi.
@@ -87,31 +87,25 @@ def _smbus2_ok() -> bool:
     return bool(_smbus2_available)
 
 
-def _i2c_write_pixel(index: int, r: int, g: int, b: int) -> bool:
-    """Write one RGB LED via direct I2C.  Returns True on success.
+def _i2c_available() -> bool:
+    """Probe I2C without touching any LED register.
 
-    Uses write_byte_data (register-addressed) — three separate byte writes,
-    matching the Hiwonder SDK's setPixelColor() exactly.
+    Must NOT write to an LED register (even black/0,0,0) — that was the
+    root cause of the "left eye off" fault: every auto-backend init (fresh
+    subprocess call, notebook restart, force_reset) probed by writing black
+    to LED 0, leaving the left eye dark until something explicitly set it
+    again. Read-only probe, matching eyes_controller.py's fix for the same
+    bug.
     """
     if not _I2C_ENABLED or not _smbus2_ok():
         return False
-    reg = _I2C_LED_REG.get(index)
-    if reg is None:
-        return False
     try:
         from smbus2 import SMBus
-        with SMBus(_I2C_BUS) as bus:
-            bus.write_byte_data(_I2C_ADDR, reg,     r & 0xFF)
-            bus.write_byte_data(_I2C_ADDR, reg + 1, g & 0xFF)
-            bus.write_byte_data(_I2C_ADDR, reg + 2, b & 0xFF)
+        with _bus_lock(), SMBus(_I2C_BUS) as bus:
+            bus.read_byte(_I2C_ADDR)
         return True
     except Exception:
         return False
-
-
-def _i2c_available() -> bool:
-    """Probe I2C: try writing black to LED 0.  Returns True if it works."""
-    return _i2c_write_pixel(0, 0, 0, 0)
 
 
 # ── HTTP controller helpers ───────────────────────────────────────────────────
