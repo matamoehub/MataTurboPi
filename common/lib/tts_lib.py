@@ -532,6 +532,7 @@ def wav_duration_seconds(path: str) -> float:
 def play_wav_async(path: str, device: Optional[str] = None):
     """
     Play wav using aplay (returns subprocess.Popen).
+    Prepends 150 ms of silence so the ALSA device opens before speech starts.
     """
     _require_aplay()
     try:
@@ -541,6 +542,7 @@ def play_wav_async(path: str, device: Optional[str] = None):
         if not _DEFAULT_VOLUME_FAILED:
             print("[tts_lib] warn: could not set volume (will not retry):", e)
             _DEFAULT_VOLUME_FAILED = True
+    path = _prepend_silence(path, ms=150)
     cmd = ["aplay"]
     if device:
         cmd += ["-D", device]
@@ -659,8 +661,6 @@ def say(
         sentence_silence=sentence_silence,
     )
     _time.sleep(0.25)
-    # Prepend 150 ms of silence so the ALSA device opens before speech starts.
-    path = _prepend_silence(path, ms=150)
     p = play_path_async(path, device=device)
     if block:
         p.wait()
