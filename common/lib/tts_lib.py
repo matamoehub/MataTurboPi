@@ -533,6 +533,7 @@ def play_wav_async(path: str, device: Optional[str] = None):
     """
     Play wav using aplay (returns subprocess.Popen).
     Prepends 150 ms of silence so the ALSA device opens before speech starts.
+    The padded temp file is deleted automatically once aplay exits.
     """
     _require_aplay()
     try:
@@ -542,12 +543,23 @@ def play_wav_async(path: str, device: Optional[str] = None):
         if not _DEFAULT_VOLUME_FAILED:
             print("[tts_lib] warn: could not set volume (will not retry):", e)
             _DEFAULT_VOLUME_FAILED = True
-    path = _prepend_silence(path, ms=150)
+    padded = _prepend_silence(path, ms=150)
     cmd = ["aplay"]
     if device:
         cmd += ["-D", device]
-    cmd += [path]
-    return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    cmd += [padded]
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if padded != path:
+        # Delete the temp pad file once aplay finishes (non-blocking)
+        def _cleanup():
+            proc.wait()
+            try:
+                os.unlink(padded)
+            except OSError:
+                pass
+        import threading as _threading
+        _threading.Thread(target=_cleanup, daemon=True).start()
+    return proc
 
 
 def play_path_async(path: str, device: Optional[str] = None):
