@@ -468,6 +468,29 @@ def _is_valid_wav(path: str) -> bool:
         return False
 
 
+def _prepend_silence(path: str, ms: int = 150) -> str:
+    """Return a new WAV path with `ms` milliseconds of silence prepended.
+
+    Writes to a temp file so the cached pre_synth file is not modified.
+    If anything goes wrong the original path is returned unchanged.
+    """
+    try:
+        import struct, tempfile as _tf
+        with wave.open(path, "rb") as src:
+            params = src.getparams()
+            frames = src.readframes(src.getnframes())
+        n_silence = int(params.framerate * ms / 1000) * params.nchannels
+        silence = struct.pack(f"<{n_silence}h", *([0] * n_silence))
+        fd, out = _tf.mkstemp(suffix=".wav", prefix="piper-pad-")
+        os.close(fd)
+        with wave.open(out, "wb") as dst:
+            dst.setparams(params)
+            dst.writeframes(silence + frames)
+        return out
+    except Exception:
+        return path
+
+
 def pre_synth(
     text: str,
     voice: Optional[str] = None,
@@ -636,6 +659,8 @@ def say(
         sentence_silence=sentence_silence,
     )
     _time.sleep(0.25)
+    # Prepend 150 ms of silence so the ALSA device opens before speech starts.
+    path = _prepend_silence(path, ms=150)
     p = play_path_async(path, device=device)
     if block:
         p.wait()
