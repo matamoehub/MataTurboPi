@@ -604,10 +604,6 @@ def say_piped(
 
 
 
-# say_safe is an alias — say() already uses the render-then-play pattern
-say_safe = say
-
-
 def warm_piper(voice: Optional[str] = None):
     """
     Warms piper model cache / initial startup cost.
@@ -644,4 +640,8 @@ def say(
     if block:
         p.wait()
     return path
+
+
+# say_safe is an alias — say() already uses the render-then-play pattern
+say_safe = say
 
