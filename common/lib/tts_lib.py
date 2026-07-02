@@ -603,36 +603,9 @@ def say_piped(
         return None
 
 
-def say_safe(
-    text: str,
-    voice: Optional[str] = None,
-    device: Optional[str] = None,
-    length_scale: str = "1.00",
-    sentence_silence: str = "0.12",
-    block: bool = True,
-) -> str:
-    """Synthesise to a temp file, wait 250 ms for CPU to settle, then play.
 
-    Unlike say_piped(), piper and aplay do NOT run simultaneously — the CPU
-    spike from synthesis finishes before the DAC/amplifier starts drawing
-    current.  This eliminates the combined power surge that trips the TurboPi
-    low-voltage cutout when running on a battery under load.
-
-    Use this in place of say_piped() on battery-powered robots.
-    Returns the wav path.
-    """
-    import time as _time
-    path = pre_synth(
-        text,
-        voice=voice,
-        length_scale=length_scale,
-        sentence_silence=sentence_silence,
-    )
-    _time.sleep(0.25)   # let piper CPU spike subside before DAC draws current
-    p = play_path_async(path, device=device)
-    if block:
-        p.wait()
-    return path
+# say_safe is an alias — say() already uses the render-then-play pattern
+say_safe = say
 
 
 def warm_piper(voice: Optional[str] = None):
@@ -653,16 +626,20 @@ def say(
     sentence_silence: str = "0.12",
     block: bool = True,
 ) -> str:
+    """Synthesise to a temp file, wait 250 ms for CPU to settle, then play.
+
+    Rendering and playback are separated so the piper CPU spike and the
+    DAC/amplifier draw never coincide — prevents battery voltage sag on
+    TurboPi. Returns the wav path.
     """
-    One-liner for lessons/tests.
-    Returns the wav path.
-    """
+    import time as _time
     path = pre_synth(
         text,
         voice=voice,
         length_scale=length_scale,
         sentence_silence=sentence_silence,
     )
+    _time.sleep(0.25)
     p = play_path_async(path, device=device)
     if block:
         p.wait()
