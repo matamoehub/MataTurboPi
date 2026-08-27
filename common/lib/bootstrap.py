@@ -192,7 +192,7 @@ def setup_ros_env(default_domain: str = "0") -> dict:
         os.environ.pop("CYCLONEDDS_URI", None)
 
     os.environ.setdefault("ROS_DOMAIN_ID", str(default_domain))
-    os.environ.setdefault("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")
+    os.environ.setdefault("RMW_IMPLEMENTATION", "rmw_fastrtps_cpp")
 
     return {
         "ROS_DOMAIN_ID": os.environ.get("ROS_DOMAIN_ID"),
