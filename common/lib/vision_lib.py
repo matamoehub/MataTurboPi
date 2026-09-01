@@ -13,9 +13,9 @@ singleton-safe library that can:
 - calibrate colour HSV ranges from the notebook
 - undistort frames using camera calibration (calibration_param.npz)
 - report angular offset and lateral cm in target_position()
-- run YOLOv8 nano object detection
+- run YOLO26 nano object detection
 """
-__version__ = "1.3.4"
+__version__ = "1.4.0"
 
 import copy
 import base64
@@ -35,14 +35,14 @@ _CALIBRATION_SEARCH_PATHS = [
     Path.home() / "camera_calibration.npz",
 ]
 
-# YOLO model — yolov8n nano, pre-installed on the robot at a fixed path.
+# YOLO model — yolo26n nano, pre-installed on the robot at a fixed path.
 # Students never need to choose or specify a model.
 # Override with YOLO_MODEL env var for advanced use.
-_YOLO_MODEL_NAME = "yolov8n.pt"
+_YOLO_MODEL_NAME = "yolo26n.pt"
 _YOLO_MODEL_SEARCH_PATHS = [
-    Path("/opt/robot/models/yolov8n.pt"),          # pre-installed by ops
-    Path(__file__).resolve().parent.parent / "models" / "yolov8n.pt",  # repo copy
-    Path.home() / ".config" / "Ultralytics" / "yolov8n.pt",  # ultralytics cache
+    Path("/opt/robot/models/yolo26n.pt"),          # pre-installed by ops
+    Path(__file__).resolve().parent.parent / "models" / "yolo26n.pt",  # repo copy
+    Path.home() / ".config" / "Ultralytics" / "yolo26n.pt",  # ultralytics cache
 ]
 _DEFAULT_YOLO_MODEL = os.environ.get("YOLO_MODEL", _YOLO_MODEL_NAME)
 
@@ -780,11 +780,11 @@ class Vision:
     # ── YOLO object detection ─────────────────────────────────────────────────
 
     def _ensure_yolo(self) -> Any:
-        """Load YOLOv8 nano model lazily.
+        """Load YOLO26 nano model lazily.
 
-        Checks pre-installed paths first (/opt/robot/models/yolov8n.pt),
+        Checks pre-installed paths first (/opt/robot/models/yolo26n.pt),
         then falls back to ultralytics auto-download.
-        Students never need to specify a model — it is always yolov8n.
+        Students never need to specify a model — it is always yolo26n.
         """
         if self._yolo_model is not None:
             return self._yolo_model
@@ -808,12 +808,12 @@ class Vision:
         for p in _YOLO_MODEL_SEARCH_PATHS:
             if p.exists():
                 self._yolo_model = YOLO(str(p))
-                print(f"[vision_lib] YOLO nano loaded from {p}")
+                print(f"[vision_lib] YOLO26 nano loaded from {p}")
                 return self._yolo_model
         # Not pre-installed — download (requires internet, first run only)
-        print("[vision_lib] downloading yolov8n.pt (first use only)...")
+        print(f"[vision_lib] downloading {_YOLO_MODEL_NAME} (first use only)...")
         self._yolo_model = YOLO(_YOLO_MODEL_NAME)
-        print("[vision_lib] YOLO nano ready")
+        print("[vision_lib] YOLO26 nano ready")
         return self._yolo_model
 
     def detect_objects_yolo(
@@ -824,9 +824,9 @@ class Vision:
         classes: Optional[List[int]] = None,
         object_diameter_cm: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """Run YOLOv8 nano object detection on a captured frame.
+        """Run YOLO26 nano object detection on a captured frame.
 
-        Always uses the pre-installed yolov8n model — students do not
+        Always uses the pre-installed yolo26n model — students do not
         need to choose or download a model.
 
         Args:
