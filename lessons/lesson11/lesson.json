@@ -6,7 +6,8 @@
   "tags": [
     "Robot control",
     "Sound & voice"
-  ],  "has_demo": true,
+  ],
+  "has_demo": true,
   "levels": [
     {
       "id": "level_1",
