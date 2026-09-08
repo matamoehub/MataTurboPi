@@ -8,7 +8,8 @@
     "Navigation",
     "Sound & voice",
     "Expression"
-  ],  "has_demo": true,
+  ],
+  "has_demo": true,
   "levels": [
     {
       "id": "robot_league",
