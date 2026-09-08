@@ -3,9 +3,9 @@
   "title": "Lesson 12 \u2014 Character Animation V2",
   "description": "Mirror of Lesson 2 using the V2 aggregate robot object API.",
   "tags": [
-    "movement",
-    "animation",
-    "sound"
+    "Expression",
+    "Sound & voice",
+    "Robot control"
   ],
   "has_demo": false,
   "levels": [

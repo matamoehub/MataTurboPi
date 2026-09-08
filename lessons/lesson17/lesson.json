@@ -3,11 +3,9 @@
   "title": "Lesson 17 \u2014 Advanced Project V2",
   "description": "Mirror of Lesson 7 using the V2 aggregate robot object API.",
   "tags": [
-    "movement",
-    "sonar",
-    "navigation",
-    "programming",
-    "project"
+    "Robot control",
+    "Navigation",
+    "Sound & voice"
   ],
   "has_demo": false,
   "levels": [
