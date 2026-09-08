@@ -398,9 +398,9 @@ class VisionNamespace(_BackendProxy):
         classes: Optional[list] = None,
         object_diameter_cm: Optional[float] = None,
     ):
-        """Detect objects using YOLOv8 nano (pre-installed on the robot).
+        """Detect objects using YOLO26 nano (pre-installed on the robot).
 
-        Students do not need to choose a model — yolov8n is used automatically.
+        Students do not need to choose a model — yolo26n is used automatically.
 
         Args:
             conf:               Confidence threshold 0-1 (default 0.5).
@@ -1434,9 +1434,9 @@ class RobotV2:
             if model_found:
                 _pass("yolo", f"ultralytics installed, model at {next(p for p in _paths if p.exists())}")
             else:
-                _fail("yolo", "ultralytics installed but yolov8n.pt not pre-installed — "
-                      "ask ops to run: python3 -c \"from ultralytics import YOLO; YOLO('yolov8n.pt')\" "
-                      "and copy to /opt/robot/models/yolov8n.pt")
+                _fail("yolo", "ultralytics installed but yolo26n.pt not pre-installed — "
+                      "ask ops to run: python3 -c \"from ultralytics import YOLO; YOLO('yolo26n.pt')\" "
+                      "and copy to /opt/robot/models/yolo26n.pt")
         except ImportError:
             _fail("yolo", "ultralytics not installed — ask ops to run: pip install ultralytics")
         except Exception as e:

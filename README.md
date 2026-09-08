@@ -91,5 +91,8 @@ simulator/
   # GUI simulator + compatibility shims
 
 lessons/
-  lesson_01_robot_demo/
-  lesson_02_...
+  lesson10/   # Workspace (sandbox)
+  lesson11/   # Robot Demo
+  lesson12/   # Character Animation
+  ...
+  lesson20/   # Robot League (capstone)
