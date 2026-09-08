@@ -2,6 +2,9 @@
   "id": "lesson11",
   "title": "Lesson 11 \u2014 Robot Demo V2",
   "description": "Mirror of Lesson 1 using the V2 aggregate robot object API.",
+  "summary": "Drive around cups using the V2 all-in-one robot object.",
+  "tags": ["Robot control", "Sound & voice", "Expression"],
+  "has_demo": true,
   "levels": [
     {
       "id": "level_1",

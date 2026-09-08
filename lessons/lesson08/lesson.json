@@ -2,6 +2,8 @@
   "id": "lesson08",
   "title": "Lesson 8 \u2014 Rock Paper Scissors Vision",
   "description": "Use MediaPipe hand gesture recognition to build a rock-paper-scissors game with the notebook-friendly V1 lesson libraries.",
+  "summary": "Play rock-paper-scissors by recognising hand signs with the camera.",
+  "tags": ["AI: Pose & hands", "AI: Faces", "Sound & voice"],
   "levels": [
     {
       "id": "level_1",

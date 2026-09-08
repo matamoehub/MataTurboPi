@@ -2,6 +2,8 @@
   "id": "lesson03",
   "title": "Lesson 3 — Ball Tracking + Push to Goal",
   "description": "Use OpenCV to detect a coloured ball, steer to align, and push it into a goal. Reuse movement from Lesson 1.",
+  "summary": "Spot a coloured ball with the camera and push it into a goal.",
+  "tags": ["Colour detection", "Tracking", "Navigation", "Robot control"],
   "levels": [
     {
       "id": "level_1",

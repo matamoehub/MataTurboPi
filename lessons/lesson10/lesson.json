@@ -2,6 +2,8 @@
   "id": "lesson10",
   "title": "Lesson 10 - Workspace",
   "description": "A V2 robot workspace for trying commands, testing sensors, and exploring the API from one notebook.",
+  "summary": "Free-play sandbox to try V2 robot commands and sensors.",
+  "tags": ["Robot control"],
   "levels": [
     {
       "id": "level_1",

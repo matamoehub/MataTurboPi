@@ -2,6 +2,8 @@
   "id": "lesson16",
   "title": "Lesson 16 \u2014 Project V2",
   "description": "Mirror of Lesson 6 using the V2 aggregate robot object API.",
+  "summary": "Build an obstacle-course performance using the V2 robot object.",
+  "tags": ["Robot control", "Navigation", "Sound & voice", "Expression"],
   "levels": [
     {
       "id": "level_1",

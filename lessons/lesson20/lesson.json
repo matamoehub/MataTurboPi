@@ -2,6 +2,9 @@
   "id": "lesson20",
   "title": "Lesson 20 - Robot League",
   "description": "A V2 challenge workspace for movement, drift, eyes, camera, sonar, vision, speech, horn, and music.",
+  "summary": "Practice Robot League skills - driving, sonar, vision, sound, and lights.",
+  "tags": ["Robot control", "Navigation", "Sound & voice", "Expression"],
+  "has_demo": true,
   "levels": [
     {
       "id": "robot_league",

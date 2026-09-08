@@ -2,6 +2,9 @@
   "id": "lesson01",
   "title": "Lesson 1 — Robot Demo",
   "description": "Introduction to robot movement, vision, sound, and performance.",
+  "summary": "Plan driving moves to steer the robot safely around cups.",
+  "tags": ["Robot control", "Sound & voice", "Expression"],
+  "has_demo": true,
   "levels": [
     {
       "id": "level_1",

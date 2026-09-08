@@ -2,6 +2,8 @@
   "id": "lesson02",
   "title": "Lesson 2 — Character Animation",
   "description": "Build animated robot sequences by combining movement, eyes, camera gestures, voice, and horn.",
+  "summary": "Combine blinking, camera moves, and voice into a character scene.",
+  "tags": ["Expression", "Sound & voice"],
   "levels": [
     {
       "id": "level_1",

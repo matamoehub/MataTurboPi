@@ -2,6 +2,8 @@
   "id": "lesson17",
   "title": "Lesson 17 \u2014 Advanced Project V2",
   "description": "Mirror of Lesson 7 using the V2 aggregate robot object API.",
+  "summary": "Design a self-driving obstacle-course program with the V2 API.",
+  "tags": ["Robot control", "Navigation", "Colour detection", "Sound & voice"],
   "levels": [
     {
       "id": "level_1",

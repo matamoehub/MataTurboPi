@@ -2,6 +2,8 @@
   "id": "lesson04",
   "title": "Lesson 4 — Robot Animation (Personality)",
   "description": "Give the robot character using eyes and camera moves (fast-sdk) and speech with tts_lib.",
+  "summary": "Build expressions like happy and curious using eyes, camera, and speech.",
+  "tags": ["Expression", "Sound & voice"],
   "levels": [
     {
       "id": "level_1",
