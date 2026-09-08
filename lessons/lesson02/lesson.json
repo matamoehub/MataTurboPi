@@ -1,7 +1,13 @@
 {
   "id": "lesson02",
-  "title": "Lesson 2 — Character Animation",
+  "title": "Lesson 2 \u2014 Character Animation",
   "description": "Build animated robot sequences by combining movement, eyes, camera gestures, voice, and horn.",
+  "tags": [
+    "movement",
+    "animation",
+    "sound"
+  ],
+  "has_demo": false,
   "levels": [
     {
       "id": "level_1",

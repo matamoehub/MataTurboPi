@@ -2,6 +2,13 @@
   "id": "lesson08",
   "title": "Lesson 8 \u2014 Rock Paper Scissors Vision",
   "description": "Use MediaPipe hand gesture recognition to build a rock-paper-scissors game with the notebook-friendly V1 lesson libraries.",
+  "tags": [
+    "computer-vision",
+    "ai",
+    "gesture-recognition",
+    "game"
+  ],
+  "has_demo": false,
   "levels": [
     {
       "id": "level_1",

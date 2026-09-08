@@ -2,6 +2,13 @@
   "id": "lesson13",
   "title": "Lesson 13 - Random Colour Ball Push V2",
   "description": "Use calibrated camera colours to choose, line up with, and push a random ball.",
+  "tags": [
+    "computer-vision",
+    "color-detection",
+    "movement",
+    "navigation"
+  ],
+  "has_demo": false,
   "levels": [
     {
       "id": "level_1",

@@ -2,6 +2,13 @@
   "id": "lesson18",
   "title": "Lesson 18 \u2014 Rock Paper Scissors Vision V2",
   "description": "Use MediaPipe hand gesture recognition to build a rock-paper-scissors game with the V2 aggregate robot object.",
+  "tags": [
+    "computer-vision",
+    "ai",
+    "gesture-recognition",
+    "game"
+  ],
+  "has_demo": false,
   "levels": [
     {
       "id": "level_1",

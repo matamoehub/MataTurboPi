@@ -1,7 +1,13 @@
 {
   "id": "lesson04",
-  "title": "Lesson 4 — Robot Animation (Personality)",
+  "title": "Lesson 4 \u2014 Robot Animation (Personality)",
   "description": "Give the robot character using eyes and camera moves (fast-sdk) and speech with tts_lib.",
+  "tags": [
+    "animation",
+    "sound",
+    "movement"
+  ],
+  "has_demo": false,
   "levels": [
     {
       "id": "level_1",

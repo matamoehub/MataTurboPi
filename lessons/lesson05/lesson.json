@@ -1,7 +1,16 @@
 {
   "id": "lesson05",
-  "title": "Lesson 5 — Library Test Bench",
+  "title": "Lesson 5 \u2014 Library Test Bench",
   "description": "Load and test the robot movement, eyes, camera, speech, buzzer, ultrasonic, line following, tracking, QR, and animation libraries from one notebook.",
+  "tags": [
+    "movement",
+    "vision",
+    "sonar",
+    "sound",
+    "navigation",
+    "testing"
+  ],
+  "has_demo": false,
   "levels": [
     {
       "id": "level_1",

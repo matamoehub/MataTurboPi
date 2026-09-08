@@ -2,6 +2,13 @@
   "id": "lesson11",
   "title": "Lesson 11 \u2014 Robot Demo V2",
   "description": "Mirror of Lesson 1 using the V2 aggregate robot object API.",
+  "tags": [
+    "movement",
+    "vision",
+    "sound",
+    "introduction"
+  ],
+  "has_demo": true,
   "levels": [
     {
       "id": "level_1",

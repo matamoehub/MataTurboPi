@@ -2,6 +2,15 @@
   "id": "lesson16",
   "title": "Lesson 16 \u2014 Project V2",
   "description": "Mirror of Lesson 6 using the V2 aggregate robot object API.",
+  "tags": [
+    "movement",
+    "sonar",
+    "navigation",
+    "sound",
+    "vision",
+    "project"
+  ],
+  "has_demo": false,
   "levels": [
     {
       "id": "level_1",
