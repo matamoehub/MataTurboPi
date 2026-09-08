@@ -46,6 +46,19 @@ _YOLO_MODEL_SEARCH_PATHS = [
 ]
 _DEFAULT_YOLO_MODEL = os.environ.get("YOLO_MODEL", _YOLO_MODEL_NAME)
 
+# Older model some robots were provisioned with before the yolo26n upgrade.
+# yolo26n.pt requires internet to auto-download if it's not pre-installed —
+# on a robot with no network access, detection would otherwise be completely
+# unavailable. yolov8n.pt is a real, different (lower-accuracy) architecture,
+# not a stand-in for yolo26n — this is a deliberate degrade-gracefully
+# fallback, not something to rename/pretend is yolo26n.
+_YOLO_FALLBACK_MODEL_NAME = "yolov8n.pt"
+_YOLO_FALLBACK_SEARCH_PATHS = [
+    Path("/opt/robot/models/yolov8n.pt"),
+    Path(__file__).resolve().parent.parent / "models" / "yolov8n.pt",
+    Path.home() / ".config" / "Ultralytics" / "yolov8n.pt",
+]
+
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
 
@@ -457,6 +470,7 @@ class Vision:
         self._cal_map1: Optional[Any] = None  # precomputed undistort map1
         self._cal_map2: Optional[Any] = None  # precomputed undistort map2
         self._yolo_model: Optional[Any] = None  # loaded YOLO model (lazy)
+        self._yolo_model_path: Optional[str] = None  # which weight file actually got loaded
 
     def set_color_profile(
         self,
@@ -782,9 +796,11 @@ class Vision:
     def _ensure_yolo(self) -> Any:
         """Load YOLO26 nano model lazily.
 
-        Checks pre-installed paths first (/opt/robot/models/yolo26n.pt),
-        then falls back to ultralytics auto-download.
-        Students never need to specify a model — it is always yolo26n.
+        Checks pre-installed paths first (/opt/robot/models/yolo26n.pt), then
+        the older yolov8n.pt some robots were provisioned with before the
+        yolo26n upgrade (lower accuracy, but works with zero internet), and
+        only as a last resort falls back to an internet download of yolo26n.
+        Students never need to specify a model.
         """
         if self._yolo_model is not None:
             return self._yolo_model
@@ -808,11 +824,24 @@ class Vision:
         for p in _YOLO_MODEL_SEARCH_PATHS:
             if p.exists():
                 self._yolo_model = YOLO(str(p))
+                self._yolo_model_path = str(p)
                 print(f"[vision_lib] YOLO26 nano loaded from {p}")
                 return self._yolo_model
-        # Not pre-installed — download (requires internet, first run only)
+        # yolo26n.pt not present — try the older yolov8n.pt before reaching
+        # for the internet, so detection still works on an offline robot.
+        for p in _YOLO_FALLBACK_SEARCH_PATHS:
+            if p.exists():
+                self._yolo_model = YOLO(str(p))
+                self._yolo_model_path = str(p)
+                print(
+                    f"[vision_lib] yolo26n.pt not found — using older {_YOLO_FALLBACK_MODEL_NAME} "
+                    f"from {p} (lower accuracy; ask ops to install yolo26n.pt for the full upgrade)"
+                )
+                return self._yolo_model
+        # Neither pre-installed — download (requires internet, first run only)
         print(f"[vision_lib] downloading {_YOLO_MODEL_NAME} (first use only)...")
         self._yolo_model = YOLO(_YOLO_MODEL_NAME)
+        self._yolo_model_path = _YOLO_MODEL_NAME
         print("[vision_lib] YOLO26 nano ready")
         return self._yolo_model
 
@@ -907,6 +936,7 @@ class Vision:
             "count":   len(objects),
             "objects": objects,
             "path":    path,
+            "model_path": self._yolo_model_path,
         }
 
     def target_position(
