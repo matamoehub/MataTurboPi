@@ -3,8 +3,11 @@
   "title": "Lesson 14 \u2014 Robot Personality V2",
   "description": "Mirror of Lesson 4 using the V2 aggregate robot object API.",
   "summary": "Run a personality loop with eyes, camera, and voice on V2.",
-  "tags": ["Expression", "Sound & voice"],
-  "levels": [
+  "tags": [
+    "Expression",
+    "Sound & voice"
+  ],
+  "has_demo": false,  "levels": [
     {
       "id": "level_1",
       "title": "Level 1 (Beginner)",

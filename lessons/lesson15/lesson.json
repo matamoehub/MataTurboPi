@@ -3,8 +3,15 @@
   "title": "Lesson 15 \u2014 V2 Library Test Bench",
   "description": "Mirror of Lesson 5 using the V2 aggregate robot object API.",
   "summary": "Test each V2 robot library - moves, eyes, camera, speech, buzzer.",
-  "tags": ["Robot control", "Sound & voice", "Expression"],
-  "levels": [
+  "tags": [
+    "Robot control",
+    "Navigation",
+    "Line following",
+    "Tracking",
+    "Sound & voice",
+    "Expression"
+  ],
+  "has_demo": false,  "levels": [
     {
       "id": "level_1",
       "title": "Level 1 (Test Bench)",

@@ -3,8 +3,12 @@
   "title": "Lesson 13 - Random Colour Ball Push V2",
   "description": "Use calibrated camera colours to choose, line up with, and push a random ball.",
   "summary": "Calibrate ball colours and use the camera to line up and push one.",
-  "tags": ["Colour detection", "Tracking", "Robot control"],
-  "levels": [
+  "tags": [
+    "Colour detection",
+    "Tracking",
+    "Robot control"
+  ],
+  "has_demo": false,  "levels": [
     {
       "id": "level_1",
       "title": "Level 1 (Beginner)",
