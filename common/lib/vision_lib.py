@@ -820,25 +820,41 @@ class Vision:
                 "YOLO requires the ultralytics package. "
                 "Ask ops to run: pip install ultralytics"
             )
-        # Use pre-installed model file if available — avoids internet dependency
+        # Use pre-installed model file if available — avoids internet dependency.
+        # Loading (not just finding the file) can fail on its own: a yolo26n.pt
+        # checkpoint can use newer architecture blocks (e.g. C3k2) than the
+        # installed ultralytics package supports, raising AttributeError deep
+        # inside torch's unpickling — that's a version mismatch, not a missing
+        # file, so it must also fall through to the older yolov8n.pt rather
+        # than crashing detect_objects_yolo() outright.
         for p in _YOLO_MODEL_SEARCH_PATHS:
-            if p.exists():
+            if not p.exists():
+                continue
+            try:
                 self._yolo_model = YOLO(str(p))
-                self._yolo_model_path = str(p)
-                print(f"[vision_lib] YOLO26 nano loaded from {p}")
-                return self._yolo_model
-        # yolo26n.pt not present — try the older yolov8n.pt before reaching
-        # for the internet, so detection still works on an offline robot.
+            except Exception as e:
+                print(f"[vision_lib] failed to load {p} ({e}) — trying older {_YOLO_FALLBACK_MODEL_NAME}")
+                continue
+            self._yolo_model_path = str(p)
+            print(f"[vision_lib] YOLO26 nano loaded from {p}")
+            return self._yolo_model
+        # yolo26n.pt missing or failed to load — try the older yolov8n.pt
+        # before reaching for the internet, so detection still works.
         for p in _YOLO_FALLBACK_SEARCH_PATHS:
-            if p.exists():
+            if not p.exists():
+                continue
+            try:
                 self._yolo_model = YOLO(str(p))
-                self._yolo_model_path = str(p)
-                print(
-                    f"[vision_lib] yolo26n.pt not found — using older {_YOLO_FALLBACK_MODEL_NAME} "
-                    f"from {p} (lower accuracy; ask ops to install yolo26n.pt for the full upgrade)"
-                )
-                return self._yolo_model
-        # Neither pre-installed — download (requires internet, first run only)
+            except Exception as e:
+                print(f"[vision_lib] failed to load fallback {p} ({e})")
+                continue
+            self._yolo_model_path = str(p)
+            print(
+                f"[vision_lib] using older {_YOLO_FALLBACK_MODEL_NAME} from {p} "
+                "(lower accuracy; ask ops to install a working yolo26n.pt for the full upgrade)"
+            )
+            return self._yolo_model
+        # Neither pre-installed model loaded — download (requires internet, first run only)
         print(f"[vision_lib] downloading {_YOLO_MODEL_NAME} (first use only)...")
         self._yolo_model = YOLO(_YOLO_MODEL_NAME)
         self._yolo_model_path = _YOLO_MODEL_NAME
