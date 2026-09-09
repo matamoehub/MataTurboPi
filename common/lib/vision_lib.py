@@ -888,6 +888,7 @@ class Vision:
             objects     list of {label, confidence, x, y, w, h, cx, cy,
                                   angle_x_deg, lateral_cm (if calibrated)}
             path        saved image path or None
+            image_jpeg_b64  annotated frame (bounding boxes drawn) as base64 JPEG
         """
         cv2, np = _require_runtime()
         yolo = self._ensure_yolo()
@@ -947,12 +948,25 @@ class Vision:
         elif save_path:
             path = self._write_image(annotated, save_path=save_path)
 
+        # Always include the annotated (bounding-boxes-drawn) frame as JPEG
+        # base64, regardless of show/save_path — callers like robot_ops_web's
+        # Vision page display it inline the same way the MediaPipe test does,
+        # not just in a Jupyter cell or a saved file.
+        image_jpeg_b64 = ""
+        try:
+            ok_enc, buf = cv2.imencode(".jpg", annotated)
+            if ok_enc:
+                image_jpeg_b64 = base64.b64encode(buf.tobytes()).decode("ascii")
+        except Exception:
+            pass
+
         return {
             "found":   bool(objects),
             "count":   len(objects),
             "objects": objects,
             "path":    path,
             "model_path": self._yolo_model_path,
+            "image_jpeg_b64": image_jpeg_b64,
         }
 
     def target_position(
