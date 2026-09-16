@@ -775,6 +775,7 @@ class HelpNamespace:
         myRobot.help.sonar()     # distance sensor commands
         myRobot.help.buzzer()    # buzzer / sound commands
         myRobot.help.anim()      # animation / blinking commands
+        myRobot.help.line()      # line following commands
         myRobot.help.all()       # everything at once
     """
 
@@ -789,6 +790,7 @@ class HelpNamespace:
         print("    myRobot.help.sonar()   — distance sensor")
         print("    myRobot.help.buzzer()  — buzzer / sound")
         print("    myRobot.help.anim()    — animation / blinking")
+        print("    myRobot.help.line()    — line following")
         print("    myRobot.help.all()     — show everything")
         print()
 
@@ -921,6 +923,27 @@ class HelpNamespace:
     myRobot.anim.show_voices()                      # list available voices
 """)
 
+    def line(self):
+        print("""
+  LINE FOLLOWING  (4x IR sensor array, default backend)
+    myRobot.line.use_pid()                           # switch to IR sensors (default)
+    myRobot.line.use_camera()                        # switch to camera-based ROS node
+    myRobot.line.step(seconds=0.05)                  # one PID control step, returns debug dict
+    myRobot.line.follow_for(duration_s=3.0)           # drive for N seconds, stops at junction
+    myRobot.line.reset()                              # clear PID integral/derivative state
+
+  RAW SENSOR READS  (bypass the PID controller)
+    myRobot.infrared.read()                           # [bool, bool, bool, bool], left to right
+    myRobot.infrared.read_raw()                        # raw byte from the sensor register
+    myRobot.infrared.scan_i2c_bus()                    # list I2C addresses found on the bus
+
+  Tip: myRobot.line.step() returns
+    {"states": [...], "error": float, "turn": float, "speed": float, "junction": bool}
+  Tip: this hardware only returns booleans — there's no software colour-style
+  calibration, only I2C address/wiring and PID gain tuning. See
+  tools/CalibrateLineSensors.ipynb for a guided walkthrough.
+""")
+
     def all(self):
         self.move()
         self.eyes()
@@ -930,6 +953,7 @@ class HelpNamespace:
         self.sonar()
         self.buzzer()
         self.anim()
+        self.line()
 
 
 class RobotV2:
