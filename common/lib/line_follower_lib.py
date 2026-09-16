@@ -70,6 +70,7 @@ class LineFollower:
         pid: Optional[PIDConfig] = None,
         max_turn: float = 0.8,
         junction_action: str = "stop",
+        disabled_channels: Optional[List[int]] = None,
     ):
         self.ir = infrared if infrared is not None else get_infrared()
         self.base_speed = float(base_speed)
@@ -77,6 +78,12 @@ class LineFollower:
         self.pid = pid if pid is not None else PIDConfig()
         self.max_turn = float(max_turn)
         self.junction_action = str(junction_action)  # "stop" | "continue"
+        # Channel indices to ignore in steering/junction logic — for a sensor
+        # board with a dead/unreliable channel (e.g. one that reads "line
+        # detected" almost permanently regardless of what's underneath).
+        # Raw readings for a disabled channel are still returned in step()'s
+        # debug dict, just not used to drive the robot.
+        self.disabled_channels = set(disabled_channels or [])
 
         self._integral = 0.0
         self._prev_error = 0.0
@@ -87,6 +94,10 @@ class LineFollower:
 
         self.rm = rm
 
+    def _usable_states(self, states: List[bool]) -> List[bool]:
+        """states with any disabled_channels forced to False, for steering/junction use."""
+        return [False if i in self.disabled_channels else bool(s) for i, s in enumerate(states)]
+
     def _calc_error(self, states: List[bool]) -> float:
         """
         Weighted SUM of sensor readings.
@@ -96,18 +107,24 @@ class LineFollower:
         regardless of how many sensors are over the line — making PID gain tuning
         predictable.  When no sensors are active (line lost) we hold the last
         known error so the robot keeps turning in the last-corrected direction.
+
+        disabled_channels are forced False here so an unreliable sensor can't
+        bias steering.
         """
         if len(states) != len(self.weights):
             raise ValueError(f"Expected {len(self.weights)} sensor states, got {len(states)}")
-        error = float(sum(w * int(bool(s)) for w, s in zip(self.weights, states)))
-        if error == 0.0 and not any(states):
+        usable = self._usable_states(states)
+        error = float(sum(w * int(s) for w, s in zip(self.weights, usable)))
+        if error == 0.0 and not any(usable):
             # Line lost — hold last error so robot keeps turning toward line.
             return self._prev_error
         return error
 
     def _is_junction(self, states: List[bool]) -> bool:
-        """All sensors on indicates a T-junction, solid block, or robot being lifted."""
-        return all(bool(s) for s in states)
+        """All USABLE sensors on indicates a T-junction, solid block, or robot
+        being lifted. disabled_channels are forced False so a stuck-on
+        channel can't fake a permanent junction."""
+        return all(self._usable_states(states))
 
     def _pid_turn(self, error: float) -> float:
         now = time.time()
