@@ -27,9 +27,13 @@ class Infrared:
         self.sensor.close()
 
     def read(self, retries: int = 4, retry_delay_s: float = 0.02) -> List[bool]:
+        """[s0,s1,s2,s3], True = black line detected (already inverted for you)."""
         return self.sensor.read(retries=retries, retry_delay_s=retry_delay_s)
 
     def read_raw(self, retries: int = 4, retry_delay_s: float = 0.02) -> int:
+        """Raw register byte, NOT inverted: bit=1 means white/reflective ground,
+        bit=0 means black line or blocked. Use read() unless you specifically
+        need the untouched hardware value."""
         last_err: Optional[Exception] = None
         for _ in range(int(retries)):
             try:

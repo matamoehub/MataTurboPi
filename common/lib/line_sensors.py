@@ -1,7 +1,13 @@
 # common/lib/line_sensors.py
 # 4x IR line sensor via I2C, address 0x78, register 0x01 (confirmed on real
 # hardware — 0x77 is a different device, the sonar+RGB-eyes MCU, see i2c_bus.py)
-# Returns [s0,s1,s2,s3] as booleans.
+# Returns [s0,s1,s2,s3] as booleans, True = black line detected.
+#
+# Hardware is active-low: raw bit=1 means white/reflective ground, bit=0
+# means black line or blocked. read() inverts this so True consistently
+# means "line detected" for callers (line_follower_lib.py's PID/junction
+# logic) — confirmed on real hardware: finger directly on a sensor reads
+# raw 0, plain white mat with nothing under it reads raw all-1s.
 #
 # Robust against intermittent: OSError [Errno 121] Remote I/O error
 
@@ -42,12 +48,12 @@ class LineSensors:
         for _ in range(int(retries)):
             try:
                 v = self._read_byte()
-                # bit0..bit3
+                # bit0..bit3, inverted (active-low hardware -> True = line)
                 return [
-                    bool(v & 0x01),
-                    bool(v & 0x02),
-                    bool(v & 0x04),
-                    bool(v & 0x08),
+                    not bool(v & 0x01),
+                    not bool(v & 0x02),
+                    not bool(v & 0x04),
+                    not bool(v & 0x08),
                 ]
             except OSError as e:
                 last_err = e
