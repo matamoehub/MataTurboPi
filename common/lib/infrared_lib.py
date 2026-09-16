@@ -13,8 +13,10 @@ from line_sensors import LineSensors
 
 
 class Infrared:
-    # NOTE: Hiwonder hardware ships with address 0x78.
-    # If sensors read all-False on real hardware, try scan_i2c_bus() to confirm.
+    # NOTE: address 0x78, register 0x01 — confirmed on real hardware.
+    # Requires the STM32 co-processor's serial link to be open first
+    # (see board_gate.py, called from LineSensors.__init__) or every read
+    # fails with OSError regardless of wiring/address.
     def __init__(self, bus_num: int = 1, address: int = 0x78, register: int = 0x01):
         self.sensor = LineSensors(bus_num=bus_num, address=address, register=register)
         self.address = int(address)
