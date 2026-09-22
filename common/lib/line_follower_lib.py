@@ -46,13 +46,20 @@ class LineFollower:
     Reads 4 IR sensors and commands robot movement with a PID steering correction.
 
     Expected sensor bit order: [s0, s1, s2, s3] — left to right.
-    Default weights: [-3, -1, +1, +3] — negative = left of centre, positive = right.
+    Default weights: [-3.15, -0.75, +0.75, +3.15] — negative = left of
+    centre, positive = right.
 
-    Physical layout (measured on real hardware): probes are evenly spaced
-    2cm apart (s0-s1, s1-s2, s2-s3 each 2cm), s0-to-s3 spans 6cm total.
-    Default weights step evenly by 2 per sensor, matching this even spacing.
-    The 6cm total array width is narrow relative to a 2cm-wide line on a
-    sharp curve — the line can leave the sensing footprint with little
+    Physical layout (measured on real hardware): probes are NOT evenly
+    spaced. Gaps: s0-s1 = 24mm, s1-s2 = 15mm, s2-s3 = 24mm (s0-to-s3 spans
+    ~63-64mm total). Positions relative to the array's centre work out to
+    roughly -31.5mm, -7.5mm, +7.5mm, +31.5mm — an outer:inner ratio of
+    about 4.2:1, not the 3:1 evenly-spaced weighting used previously.
+    Default weights are those offsets in cm, so they track the true
+    geometry (bigger correction when an OUTER sensor sees the line, since
+    it means the robot has drifted further off-centre than an inner
+    sensor lighting up would).
+    The ~6.3cm total array width is narrow relative to a 2cm-wide line on
+    a sharp curve — the line can leave the sensing footprint with little
     advance warning, which is why tight curves need a lower base_speed
     and/or a faster PID response (higher kp, longer step() seconds) rather
     than just gain tuning on a straightaway.
@@ -60,8 +67,8 @@ class LineFollower:
     Error is computed as the weighted SUM of active sensor readings (True=1, False=0).
     This is the standard weighted-sensor-fusion approach:
         error = Σ(weight_i * sensor_i)
-    Max possible error with default weights: ±4 (all left or all right sensors on).
-    Typical single-sensor range: ±1 or ±3.
+    Max possible error with default weights: ±3.9 (all left or all right sensors on).
+    Typical single-sensor range: ±0.75 or ±3.15.
 
     Steering uses yaw (angular_rate), not lateral strafe. The robot turns its heading
     to re-align with the line rather than sliding sideways past it.
@@ -83,7 +90,7 @@ class LineFollower:
     ):
         self.ir = infrared if infrared is not None else get_infrared()
         self.base_speed = float(base_speed)
-        self.weights = weights if weights is not None else [-3.0, -1.0, 1.0, 3.0]
+        self.weights = weights if weights is not None else [-3.15, -0.75, 0.75, 3.15]
         self.pid = pid if pid is not None else PIDConfig()
         self.max_turn = float(max_turn)
         self.junction_action = str(junction_action)  # "stop" | "continue"
