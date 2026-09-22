@@ -13,13 +13,14 @@ from line_sensors import LineSensors
 
 
 class Infrared:
-    # NOTE: address 0x78, register 0x01 — confirmed on real hardware.
+    # NOTE: address 0x78 by default, some units answer at 0x48 instead —
+    # pass address=None (the default) to auto-detect which this robot uses.
     # Requires the STM32 co-processor's serial link to be open first
     # (see board_gate.py, called from LineSensors.__init__) or every read
     # fails with OSError regardless of wiring/address.
-    def __init__(self, bus_num: int = 1, address: int = 0x78, register: int = 0x01):
+    def __init__(self, bus_num: int = 1, address: Optional[int] = None, register: int = 0x01):
         self.sensor = LineSensors(bus_num=bus_num, address=address, register=register)
-        self.address = int(address)
+        self.address = self.sensor.address  # resolved value, in case address was None
         self.register = int(register)
         self.bus_num = int(bus_num)
 
@@ -58,7 +59,7 @@ class Infrared:
 _IR_SINGLETON: Optional[Infrared] = None
 
 
-def get_infrared(bus_num: int = 1, address: int = 0x78, register: int = 0x01) -> Infrared:
+def get_infrared(bus_num: int = 1, address: Optional[int] = None, register: int = 0x01) -> Infrared:
     global _IR_SINGLETON
     if _IR_SINGLETON is None:
         _IR_SINGLETON = Infrared(bus_num=bus_num, address=address, register=register)

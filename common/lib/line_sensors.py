@@ -21,18 +21,39 @@ except ImportError as e:
 
 from board_gate import ensure_board_enabled
 
+# Known line-sensor addresses seen across the fleet — different units have
+# answered at different addresses (0x78 is the documented default, 0x48 seen
+# on at least one robot). 0x77 is excluded: that's the sonar+RGB-eyes MCU,
+# a different device entirely (see i2c_bus.py).
+_KNOWN_ADDRESSES = (0x78, 0x48)
+
+
+def _detect_address(bus, register: int) -> int:
+    for addr in _KNOWN_ADDRESSES:
+        try:
+            bus.read_byte_data(addr, register)
+            return addr
+        except OSError:
+            continue
+    raise OSError(
+        f"No line sensor answered at any known address {[hex(a) for a in _KNOWN_ADDRESSES]} "
+        f"on register 0x{register:02x}. Check wiring/mounting height, or pass address= explicitly."
+    )
+
 
 class LineSensors:
-    # NOTE: Hiwonder hardware ships with address 0x78, register 0x01.
+    # NOTE: Hiwonder hardware ships with address 0x78, register 0x01 (some
+    # units answer at 0x48 instead — pass address=None, the default, to
+    # auto-detect which one this robot uses).
     # The sensor will not answer on I2C until the STM32 co-processor's
     # serial link has been opened (see board_gate.py) — without that, every
     # read fails with OSError regardless of wiring/address.
-    def __init__(self, bus_num: int = 1, address: int = 0x78, register: int = 0x01):
+    def __init__(self, bus_num: int = 1, address: Optional[int] = None, register: int = 0x01):
         ensure_board_enabled()
         self.bus_num = int(bus_num)
-        self.address = int(address)
         self.register = int(register)
         self.bus = SMBus(self.bus_num)
+        self.address = int(address) if address is not None else _detect_address(self.bus, self.register)
 
     def close(self):
         try:
