@@ -48,6 +48,15 @@ class LineFollower:
     Expected sensor bit order: [s0, s1, s2, s3] — left to right.
     Default weights: [-3, -1, +1, +3] — negative = left of centre, positive = right.
 
+    Physical layout (measured on real hardware): probes are evenly spaced
+    2cm apart (s0-s1, s1-s2, s2-s3 each 2cm), s0-to-s3 spans 6cm total.
+    Default weights step evenly by 2 per sensor, matching this even spacing.
+    The 6cm total array width is narrow relative to a 2cm-wide line on a
+    sharp curve — the line can leave the sensing footprint with little
+    advance warning, which is why tight curves need a lower base_speed
+    and/or a faster PID response (higher kp, longer step() seconds) rather
+    than just gain tuning on a straightaway.
+
     Error is computed as the weighted SUM of active sensor readings (True=1, False=0).
     This is the standard weighted-sensor-fusion approach:
         error = Σ(weight_i * sensor_i)
