@@ -35,9 +35,14 @@ else:
 
 @dataclass
 class PIDConfig:
-    kp: float = 25.0
-    ki: float = 0.0
-    kd: float = 4.0
+    # Defaults proven on real hardware: base_speed=80, step seconds=0.1,
+    # weights=[-3.15,-1.5,1.5,3.15], max_turn=1.2 — completed 1.5 laps of an
+    # oval track reliably. Raising base_speed further caused it to miss
+    # curves again (sensing resolution vs. speed tradeoff) - see
+    # LineFollower's docstring before pushing speed beyond this baseline.
+    kp: float = 65.0
+    ki: float = 3.0
+    kd: float = 2.0
     integral_limit: float = 100.0
 
 
@@ -46,8 +51,13 @@ class LineFollower:
     Reads 4 IR sensors and commands robot movement with a PID steering correction.
 
     Expected sensor bit order: [s0, s1, s2, s3] — left to right.
-    Default weights: [-3.15, -0.75, +0.75, +3.15] — negative = left of
-    centre, positive = right.
+    Default weights: [-3.15, -1.5, +1.5, +3.15] — negative = left of
+    centre, positive = right. Inner weight bumped from the raw measured
+    -0.75/+0.75 offsets up to -1.5/+1.5 - the raw geometry-proportional
+    values under-corrected small (inner-sensor-only) drift in practice on
+    real hardware, letting the robot wander before an outer sensor finally
+    caught it. This is a deliberately tuned deviation from pure geometry,
+    not a re-measurement.
 
     Physical layout (measured on real hardware): probes are NOT evenly
     spaced. Gaps: s0-s1 = 24mm, s1-s2 = 15mm, s2-s3 = 24mm (s0-to-s3 spans
@@ -81,16 +91,16 @@ class LineFollower:
     def __init__(
         self,
         infrared: Optional[Infrared] = None,
-        base_speed: float = 220.0,
+        base_speed: float = 80.0,
         weights: Optional[List[float]] = None,
         pid: Optional[PIDConfig] = None,
-        max_turn: float = 0.8,
+        max_turn: float = 1.2,
         junction_action: str = "stop",
         disabled_channels: Optional[List[int]] = None,
     ):
         self.ir = infrared if infrared is not None else get_infrared()
         self.base_speed = float(base_speed)
-        self.weights = weights if weights is not None else [-3.15, -0.75, 0.75, 3.15]
+        self.weights = weights if weights is not None else [-3.15, -1.5, 1.5, 3.15]
         self.pid = pid if pid is not None else PIDConfig()
         self.max_turn = float(max_turn)
         self.junction_action = str(junction_action)  # "stop" | "continue"
@@ -161,7 +171,7 @@ class LineFollower:
         turn = u / 200.0
         return max(-self.max_turn, min(self.max_turn, turn))
 
-    def step(self, seconds: float = 0.05, speed: Optional[float] = None) -> dict:
+    def step(self, seconds: float = 0.1, speed: Optional[float] = None) -> dict:
         """
         One control step:
           1. Read 4 IR sensors
@@ -212,7 +222,7 @@ class LineFollower:
     def follow_for(
         self,
         duration_s: float = 3.0,
-        step_s: float = 0.05,
+        step_s: float = 0.1,
         speed: Optional[float] = None,
         stop_at_junction: Optional[bool] = None,
     ) -> bool:
