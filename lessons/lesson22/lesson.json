@@ -1,0 +1,21 @@
+{
+  "id": "lesson22",
+  "title": "Lesson 22 — See It, Grab It (Vision + Claw) V2",
+  "description": "Combine camera colour tracking, the distance sensor, and the claw: find an object, drive to it, and pick it up.",
+  "summary": "Track a coloured object, drive up to it using sonar, then grab it with the claw.",
+  "tags": [
+    "Colour detection",
+    "Tracking",
+    "Robotic arm",
+    "Gripper",
+    "Robot control"
+  ],
+  "has_demo": false,
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Beginner)",
+      "entry": "Lesson22.ipynb"
+    }
+  ]
+}

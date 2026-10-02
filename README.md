@@ -96,3 +96,5 @@ lessons/
   lesson12/   # Character Animation
   ...
   lesson20/   # Robot League (capstone)
+  lesson21/   # Pick It Up (claw basics)
+  lesson22/   # See It, Grab It (vision + claw)

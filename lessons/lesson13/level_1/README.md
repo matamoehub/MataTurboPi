@@ -53,3 +53,21 @@ elif decision["direction"] == "center":
 ```
 
 The main student challenge is to tune the movement times so the robot lines up without overshooting.
+
+## Optional: pick it up instead of pushing (arm robots only)
+
+If your robot has the **claw** (the "ultimate kit" — see Lesson 21), you can
+*grab* the ball instead of pushing it. When the ball is centred and close, use
+the distance sensor and the claw:
+
+```python
+if myRobot.arm.available and decision["direction"] == "center":
+    if myRobot.sonar.distance_cm() is not None and myRobot.sonar.distance_cm() <= 12:
+        myRobot.move.stop()
+        myRobot.arm.grab()        # open -> lower -> close -> raise
+        print("Picked up the", TARGET_COLOUR, "ball!")
+```
+
+On a robot with no claw, `myRobot.arm.available` is `False`, so this block is
+skipped and the lesson works exactly as before. The full "find it, drive to it,
+pick it up" version is **Lesson 22**.

@@ -1,0 +1,19 @@
+{
+  "id": "lesson21",
+  "title": "Lesson 21 — Pick It Up (Claw Basics) V2",
+  "description": "Use the optional robotic arm / claw: test it, open and close the gripper, and grab and place an object.",
+  "summary": "Learn the claw: run the self-test, then grab and place an object.",
+  "tags": [
+    "Robotic arm",
+    "Gripper",
+    "Robot control"
+  ],
+  "has_demo": false,
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Beginner)",
+      "entry": "Lesson21.ipynb"
+    }
+  ]
+}

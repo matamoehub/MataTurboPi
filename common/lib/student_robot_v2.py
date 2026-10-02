@@ -22,7 +22,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.6.1"
+__version__ = "2.6.2"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -308,6 +308,29 @@ class CameraNamespace(_BackendProxy):
 class VisionNamespace(_BackendProxy):
     def _get_backend(self):
         return self._owner._vision_backend
+
+    def mediapipe_info(self) -> dict:
+        """Report the installed MediaPipe version and which solutions this
+        robot can actually use for the vision lessons.
+
+        Pure capability probe: needs no camera, no backend, and never raises —
+        safe to call on any robot (or this dev machine). Returns
+        ``{"installed": bool, "version": str|None, "solutions": {name: bool}}``.
+        Use it at the start of a MediaPipe lesson to confirm the robot has the
+        expected version (the lessons are written for mediapipe 0.10.9).
+        """
+        info = {"installed": False, "version": None, "solutions": {}}
+        try:
+            import mediapipe as mp  # type: ignore
+        except Exception as e:  # not installed / import blew up
+            info["error"] = str(e)
+            return info
+        info["installed"] = True
+        info["version"] = getattr(mp, "__version__", "unknown")
+        solutions = getattr(mp, "solutions", None)
+        for name in ("hands", "face_detection", "face_mesh", "pose", "holistic", "objectron"):
+            info["solutions"][name] = bool(solutions is not None and hasattr(solutions, name))
+        return info
 
     def capture(self, show: bool = True, save_path: Optional[str] = None, title: str = "Camera Capture"):
         backend = self._ensure()
@@ -952,6 +975,12 @@ class HelpNamespace:
     myRobot.vision.calibrate_color("red")           # recalibrate red detection
     myRobot.vision.load_calibration()               # load camera calibration
     myRobot.vision.pixel_to_angle(320, 240)         # pixel coords → angle degrees
+
+  MediaPipe (hands / faces / pose — needs mediapipe 0.10.9 on the robot):
+    myRobot.vision.mediapipe_info()                 # version + which solutions work
+    myRobot.vision.recognize_hands()                # → gestures + rock/paper/scissors move
+    myRobot.vision.detect_faces()                   # face bounding boxes
+    myRobot.vision.detect_pose()                    # body pose landmarks
 
   Common YOLO classes: 0=person  32=sports ball  39=bottle  41=cup  67=phone
 """)
