@@ -22,7 +22,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.5.4"
+__version__ = "2.6.0"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -762,6 +762,49 @@ class QRCodeNamespace(_BackendProxy):
         return self._owner._qrcode_backend
 
 
+class ArmNamespace(_BackendProxy):
+    """Optional robotic-arm attachment (lift + gripper). Not every TurboPi
+    has one — every method here returns False instead of raising when the
+    arm isn't present, so calling them is always safe either way.
+    """
+
+    def _get_backend(self):
+        return self._owner._arm_backend
+
+    @property
+    def available(self) -> bool:
+        backend = self._ensure()
+        return bool(backend is not None and backend.available)
+
+    def open_gripper(self, duration: float = 0.5) -> bool:
+        backend = self._ensure()
+        return bool(backend and backend.open_gripper(duration))
+
+    def close_gripper(self, duration: float = 0.5) -> bool:
+        backend = self._ensure()
+        return bool(backend and backend.close_gripper(duration))
+
+    def set_gripper(self, position: int, duration: float = 0.5) -> bool:
+        backend = self._ensure()
+        return bool(backend and backend.set_gripper(position, duration))
+
+    def lift_up(self, duration: float = 0.5) -> bool:
+        backend = self._ensure()
+        return bool(backend and backend.lift_up(duration))
+
+    def lift_down(self, duration: float = 0.5) -> bool:
+        backend = self._ensure()
+        return bool(backend and backend.lift_down(duration))
+
+    def set_lift(self, position: int, duration: float = 0.5) -> bool:
+        backend = self._ensure()
+        return bool(backend and backend.set_lift(position, duration))
+
+    def set_position(self, servo_id: int, position: int, duration: float = 0.5) -> bool:
+        backend = self._ensure()
+        return bool(backend and backend.set_position(servo_id, position, duration))
+
+
 class HelpNamespace:
     """myRobot.help  — quick reference for every robot command.
 
@@ -789,6 +832,7 @@ class HelpNamespace:
         print("    myRobot.help.sonar()   — distance sensor")
         print("    myRobot.help.buzzer()  — buzzer / sound")
         print("    myRobot.help.anim()    — animation / blinking")
+        print("    myRobot.help.arm()     — robotic arm (if attached)")
         print("    myRobot.help.all()     — show everything")
         print()
 
@@ -921,6 +965,21 @@ class HelpNamespace:
     myRobot.anim.show_voices()                      # list available voices
 """)
 
+    def arm(self):
+        print("""
+  ROBOTIC ARM  (optional attachment — not every TurboPi has one)
+    myRobot.arm.available                           # True if a working arm is attached
+    myRobot.arm.open_gripper()                       # open the gripper
+    myRobot.arm.close_gripper()                      # close the gripper
+    myRobot.arm.set_gripper(2000)                    # raw position (1500=open..2500=closed)
+    myRobot.arm.lift_up()                            # raise the arm
+    myRobot.arm.lift_down()                          # lower the arm
+    myRobot.arm.set_lift(1600)                       # raw position (1200..2000)
+
+  All arm commands return False (and do nothing) on a robot with no arm —
+  safe to call unconditionally, or check myRobot.arm.available first.
+""")
+
     def all(self):
         self.move()
         self.eyes()
@@ -930,6 +989,7 @@ class HelpNamespace:
         self.sonar()
         self.buzzer()
         self.anim()
+        self.arm()
 
 
 class RobotV2:
@@ -963,6 +1023,7 @@ class RobotV2:
         self._avoidance_backend = None
         self._qrcode_backend = None
         self._animation_backend = None
+        self._arm_backend = None
 
         self.move = MoveNamespace(self)
         self.eyes = EyesNamespace(self)
@@ -977,6 +1038,8 @@ class RobotV2:
         self.tracking = TrackingNamespace(self)
         self.avoidance = AvoidanceNamespace(self)
         self.qrcode = QRCodeNamespace(self)
+        self.arm = ArmNamespace(self)
+        self.gripper = self.arm
         self.tts = self.voice
         self.sound = self.buzzer
         self.ultra = self.sonar
@@ -1188,6 +1251,14 @@ class RobotV2:
                     self._qrcode_backend = qrcode_lib.get_qrcode()
                 except Exception as e:
                     self._errors["qrcode_lib"] = str(e)
+
+        if self._arm_backend is None:
+            arm_lib = self._import("arm_lib")
+            if arm_lib is not None:
+                try:
+                    self._arm_backend = arm_lib.get_arm()
+                except Exception as e:
+                    self._errors["arm_lib"] = str(e)
 
         if self._animation_backend is None:
             anim_lib = self._import_student_animation_lib()
