@@ -42,7 +42,12 @@ class ROSServiceClient(Node):
         _rclpy_init_once()
         uniq = f"{node_name}_{os.getpid()}_{int(time.time() * 1000) % 100000}"
         super().__init__(uniq)
-        self._clients: Dict[str, Any] = {}
+        # NOTE: must NOT be named self._clients — rclpy's own Node.__init__
+        # already uses that attribute internally (as a list, appended to by
+        # create_client()). Naming collision silently clobbers it with our
+        # dict, causing AttributeError: 'dict' object has no attribute
+        # 'append' the next time rclpy tries to register a client.
+        self._svc_clients: Dict[str, Any] = {}
         self._executor = SingleThreadedExecutor()
         self._executor.add_node(self)
         self._spin_stop = threading.Event()
@@ -68,10 +73,10 @@ class ROSServiceClient(Node):
             pass
 
     def _get_client(self, service_name: str, srv_type: Type[Any]):
-        client = self._clients.get(service_name)
+        client = self._svc_clients.get(service_name)
         if client is None:
             client = self.create_client(srv_type, service_name)
-            self._clients[service_name] = client
+            self._svc_clients[service_name] = client
         return client
 
     def wait_for_service(self, service_name: str, srv_type: Type[Any], timeout_s: float = 2.0) -> bool:

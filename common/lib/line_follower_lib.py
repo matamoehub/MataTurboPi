@@ -35,9 +35,14 @@ else:
 
 @dataclass
 class PIDConfig:
-    kp: float = 25.0
-    ki: float = 0.0
-    kd: float = 4.0
+    # Defaults proven on real hardware: base_speed=80, step seconds=0.1,
+    # weights=[-3.15,-1.5,1.5,3.15], max_turn=1.2 — completed 1.5 laps of an
+    # oval track reliably. Raising base_speed further caused it to miss
+    # curves again (sensing resolution vs. speed tradeoff) - see
+    # LineFollower's docstring before pushing speed beyond this baseline.
+    kp: float = 65.0
+    ki: float = 3.0
+    kd: float = 2.0
     integral_limit: float = 100.0
 
 
@@ -46,13 +51,34 @@ class LineFollower:
     Reads 4 IR sensors and commands robot movement with a PID steering correction.
 
     Expected sensor bit order: [s0, s1, s2, s3] — left to right.
-    Default weights: [-3, -1, +1, +3] — negative = left of centre, positive = right.
+    Default weights: [-3.15, -1.5, +1.5, +3.15] — negative = left of
+    centre, positive = right. Inner weight bumped from the raw measured
+    -0.75/+0.75 offsets up to -1.5/+1.5 - the raw geometry-proportional
+    values under-corrected small (inner-sensor-only) drift in practice on
+    real hardware, letting the robot wander before an outer sensor finally
+    caught it. This is a deliberately tuned deviation from pure geometry,
+    not a re-measurement.
+
+    Physical layout (measured on real hardware): probes are NOT evenly
+    spaced. Gaps: s0-s1 = 24mm, s1-s2 = 15mm, s2-s3 = 24mm (s0-to-s3 spans
+    ~63-64mm total). Positions relative to the array's centre work out to
+    roughly -31.5mm, -7.5mm, +7.5mm, +31.5mm — an outer:inner ratio of
+    about 4.2:1, not the 3:1 evenly-spaced weighting used previously.
+    Default weights are those offsets in cm, so they track the true
+    geometry (bigger correction when an OUTER sensor sees the line, since
+    it means the robot has drifted further off-centre than an inner
+    sensor lighting up would).
+    The ~6.3cm total array width is narrow relative to a 2cm-wide line on
+    a sharp curve — the line can leave the sensing footprint with little
+    advance warning, which is why tight curves need a lower base_speed
+    and/or a faster PID response (higher kp, longer step() seconds) rather
+    than just gain tuning on a straightaway.
 
     Error is computed as the weighted SUM of active sensor readings (True=1, False=0).
     This is the standard weighted-sensor-fusion approach:
         error = Σ(weight_i * sensor_i)
-    Max possible error with default weights: ±4 (all left or all right sensors on).
-    Typical single-sensor range: ±1 or ±3.
+    Max possible error with default weights: ±3.9 (all left or all right sensors on).
+    Typical single-sensor range: ±0.75 or ±3.15.
 
     Steering uses yaw (angular_rate), not lateral strafe. The robot turns its heading
     to re-align with the line rather than sliding sideways past it.
@@ -65,18 +91,25 @@ class LineFollower:
     def __init__(
         self,
         infrared: Optional[Infrared] = None,
-        base_speed: float = 220.0,
+        base_speed: float = 80.0,
         weights: Optional[List[float]] = None,
         pid: Optional[PIDConfig] = None,
-        max_turn: float = 0.8,
+        max_turn: float = 1.2,
         junction_action: str = "stop",
+        disabled_channels: Optional[List[int]] = None,
     ):
         self.ir = infrared if infrared is not None else get_infrared()
         self.base_speed = float(base_speed)
-        self.weights = weights if weights is not None else [-3.0, -1.0, 1.0, 3.0]
+        self.weights = weights if weights is not None else [-3.15, -1.5, 1.5, 3.15]
         self.pid = pid if pid is not None else PIDConfig()
         self.max_turn = float(max_turn)
         self.junction_action = str(junction_action)  # "stop" | "continue"
+        # Channel indices to ignore in steering/junction logic — for a sensor
+        # board with a dead/unreliable channel (e.g. one that reads "line
+        # detected" almost permanently regardless of what's underneath).
+        # Raw readings for a disabled channel are still returned in step()'s
+        # debug dict, just not used to drive the robot.
+        self.disabled_channels = set(disabled_channels or [])
 
         self._integral = 0.0
         self._prev_error = 0.0
@@ -87,6 +120,10 @@ class LineFollower:
 
         self.rm = rm
 
+    def _usable_states(self, states: List[bool]) -> List[bool]:
+        """states with any disabled_channels forced to False, for steering/junction use."""
+        return [False if i in self.disabled_channels else bool(s) for i, s in enumerate(states)]
+
     def _calc_error(self, states: List[bool]) -> float:
         """
         Weighted SUM of sensor readings.
@@ -96,18 +133,24 @@ class LineFollower:
         regardless of how many sensors are over the line — making PID gain tuning
         predictable.  When no sensors are active (line lost) we hold the last
         known error so the robot keeps turning in the last-corrected direction.
+
+        disabled_channels are forced False here so an unreliable sensor can't
+        bias steering.
         """
         if len(states) != len(self.weights):
             raise ValueError(f"Expected {len(self.weights)} sensor states, got {len(states)}")
-        error = float(sum(w * int(bool(s)) for w, s in zip(self.weights, states)))
-        if error == 0.0 and not any(states):
+        usable = self._usable_states(states)
+        error = float(sum(w * int(s) for w, s in zip(self.weights, usable)))
+        if error == 0.0 and not any(usable):
             # Line lost — hold last error so robot keeps turning toward line.
             return self._prev_error
         return error
 
     def _is_junction(self, states: List[bool]) -> bool:
-        """All sensors on indicates a T-junction, solid block, or robot being lifted."""
-        return all(bool(s) for s in states)
+        """All USABLE sensors on indicates a T-junction, solid block, or robot
+        being lifted. disabled_channels are forced False so a stuck-on
+        channel can't fake a permanent junction."""
+        return all(self._usable_states(states))
 
     def _pid_turn(self, error: float) -> float:
         now = time.time()
@@ -128,7 +171,7 @@ class LineFollower:
         turn = u / 200.0
         return max(-self.max_turn, min(self.max_turn, turn))
 
-    def step(self, seconds: float = 0.05, speed: Optional[float] = None) -> dict:
+    def step(self, seconds: float = 0.1, speed: Optional[float] = None) -> dict:
         """
         One control step:
           1. Read 4 IR sensors
@@ -179,7 +222,7 @@ class LineFollower:
     def follow_for(
         self,
         duration_s: float = 3.0,
-        step_s: float = 0.05,
+        step_s: float = 0.1,
         speed: Optional[float] = None,
         stop_at_junction: Optional[bool] = None,
     ) -> bool:
