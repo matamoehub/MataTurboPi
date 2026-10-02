@@ -102,6 +102,23 @@ def _require_runtime():
     return cv2, np
 
 
+def _encode_jpeg_b64(frame_bgr) -> str:
+    """Encode an annotated BGR frame as base64 JPEG, or "" on failure.
+
+    Used by every detect_*/recognize_* method so callers (e.g. robot_ops_web's
+    Vision page) can display the annotated frame inline without needing a
+    Jupyter session or a saved file.
+    """
+    try:
+        cv2, _np = _require_runtime()
+        ok_enc, buf = cv2.imencode(".jpg", frame_bgr)
+        if ok_enc:
+            return base64.b64encode(buf.tobytes()).decode("ascii")
+    except Exception:
+        pass
+    return ""
+
+
 def _require_mediapipe_runtime():
     try:
         import mediapipe as mp  # type: ignore
@@ -948,25 +965,17 @@ class Vision:
         elif save_path:
             path = self._write_image(annotated, save_path=save_path)
 
-        # Always include the annotated (bounding-boxes-drawn) frame as JPEG
-        # base64, regardless of show/save_path — callers like robot_ops_web's
-        # Vision page display it inline the same way the MediaPipe test does,
-        # not just in a Jupyter cell or a saved file.
-        image_jpeg_b64 = ""
-        try:
-            ok_enc, buf = cv2.imencode(".jpg", annotated)
-            if ok_enc:
-                image_jpeg_b64 = base64.b64encode(buf.tobytes()).decode("ascii")
-        except Exception:
-            pass
-
         return {
             "found":   bool(objects),
             "count":   len(objects),
             "objects": objects,
             "path":    path,
             "model_path": self._yolo_model_path,
-            "image_jpeg_b64": image_jpeg_b64,
+            # Always include the annotated (bounding-boxes-drawn) frame as
+            # JPEG base64, regardless of show/save_path — callers like
+            # robot_ops_web's Vision page display it inline the same way the
+            # MediaPipe tests do, not just in a Jupyter cell or a saved file.
+            "image_jpeg_b64": _encode_jpeg_b64(annotated),
         }
 
     def target_position(
@@ -1177,6 +1186,7 @@ class Vision:
             "count": len(faces),
             "faces": faces,
             "path": path,
+            "image_jpeg_b64": _encode_jpeg_b64(annotated),
         }
 
     def show_faces(self, show: bool = True, save_path: Optional[str] = None, min_confidence: float = 0.5):
@@ -1269,6 +1279,7 @@ class Vision:
             "game_moves": game_moves,
             "first_move": game_moves[0] if game_moves else None,
             "path": path,
+            "image_jpeg_b64": _encode_jpeg_b64(annotated),
         }
 
     def show_hands(
@@ -1355,6 +1366,7 @@ class Vision:
         elif save_path:
             path = self._write_image(annotated, save_path=save_path)
         pose["path"] = path
+        pose["image_jpeg_b64"] = _encode_jpeg_b64(annotated)
         return pose
 
     def show_pose(
