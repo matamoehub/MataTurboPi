@@ -22,7 +22,7 @@ from typing import Any, Optional
 
 from ros_service_client import clear_process_singleton, get_process_singleton, set_process_singleton
 
-__version__ = "2.6.0"
+__version__ = "2.6.1"
 
 _SINGLETON_KEY = "student_robot_v2:robot"
 _LOCK_KEY = "student_robot_v2:lock"
@@ -804,6 +804,31 @@ class ArmNamespace(_BackendProxy):
         backend = self._ensure()
         return bool(backend and backend.set_position(servo_id, position, duration))
 
+    # ── High-level sequences ─────────────────────────────────────────────
+    def ready(self, duration: float = 0.5) -> bool:
+        """Neutral pose: gripper open, arm at mid height."""
+        backend = self._ensure()
+        return bool(backend and backend.ready(duration))
+
+    def grab(self, settle: float = 0.6) -> bool:
+        """Pick up an object in front of the gripper (open, lower, close, raise)."""
+        backend = self._ensure()
+        return bool(backend and backend.grab(settle))
+
+    def place(self, settle: float = 0.6) -> bool:
+        """Put down whatever is held (lower, open, raise)."""
+        backend = self._ensure()
+        return bool(backend and backend.place(settle))
+
+    def test(self, pause: float = 0.8) -> dict:
+        """Hardware self-test — moves each servo so you can confirm the arm
+        physically responds. Run this on an arm-equipped robot."""
+        backend = self._ensure()
+        if backend is None:
+            print("[arm.test] arm library not loaded on this robot")
+            return {"available": False, "ok": False}
+        return backend.self_test(pause)
+
 
 class HelpNamespace:
     """myRobot.help  — quick reference for every robot command.
@@ -990,10 +1015,14 @@ class HelpNamespace:
 
     def arm(self):
         print("""
-  ROBOTIC ARM  (optional attachment — not every TurboPi has one)
+  ROBOTIC ARM / CLAW  (optional "ultimate kit" attachment — not every TurboPi has one)
     myRobot.arm.available                           # True if a working arm is attached
-    myRobot.arm.open_gripper()                       # open the gripper
-    myRobot.arm.close_gripper()                      # close the gripper
+    myRobot.arm.test()                              # hardware self-test — watch each servo move
+    myRobot.arm.grab()                              # pick up: open, lower, close, raise
+    myRobot.arm.place()                             # put down: lower, open, raise
+    myRobot.arm.ready()                             # neutral pose: gripper open, mid height
+    myRobot.arm.open_gripper()                       # open the gripper / claw
+    myRobot.arm.close_gripper()                      # close the gripper / claw
     myRobot.arm.set_gripper(2000)                    # raw position (1500=open..2500=closed)
     myRobot.arm.lift_up()                            # raise the arm
     myRobot.arm.lift_down()                          # lower the arm
@@ -1001,6 +1030,7 @@ class HelpNamespace:
 
   All arm commands return False (and do nothing) on a robot with no arm —
   safe to call unconditionally, or check myRobot.arm.available first.
+  First time on an arm robot: run myRobot.arm.test() to confirm it works.
 """)
 
     def all(self):

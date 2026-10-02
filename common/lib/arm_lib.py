@@ -29,10 +29,11 @@ Examples:
         arm.close_gripper()
         arm.lift_up()
 """
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 import os
 import sys
+import time
 import threading
 from typing import Optional
 
@@ -42,7 +43,11 @@ _GRIPPER_ID = int(os.environ.get("ARM_GRIPPER_SERVO_ID", "6"))
 _LIFT_MIN, _LIFT_MAX = 1200, 2000
 _GRIPPER_OPEN, _GRIPPER_CLOSED = 1500, 2500
 _GRIPPER_MIN, _GRIPPER_MAX = 1500, 2500
+_LIFT_CARRY = (_LIFT_MIN + _LIFT_MAX) // 2      # neutral mid height
 _DEFAULT_DURATION_S = float(os.environ.get("ARM_MOVE_DURATION_S", "0.5"))
+# Pause between steps of a multi-move sequence (grab/place) so each servo
+# finishes before the next command — tune per robot if moves are slow.
+_SEQ_SETTLE_S = float(os.environ.get("ARM_SEQ_SETTLE_S", "0.6"))
 
 # Known locations for the vendor's direct-serial SDK across different TurboPi
 # image versions — searched in order, first importable one wins. Varies by
@@ -125,6 +130,69 @@ class Arm:
         """position: raw pulse width, clamped to the lift's safe range (1200-2000)."""
         position = max(_LIFT_MIN, min(_LIFT_MAX, int(position)))
         return self._set(_LIFT_ID, position, duration)
+
+    # ── High-level sequences (make the gripper actually useful) ──────────
+    def ready(self, duration: float = _DEFAULT_DURATION_S) -> bool:
+        """Neutral pose: gripper open, lift at mid 'carry' height."""
+        ok_grip = self.open_gripper(duration)
+        ok_lift = self.set_lift(_LIFT_CARRY, duration)
+        return bool(ok_grip and ok_lift)
+
+    def grab(self, settle: float = _SEQ_SETTLE_S) -> bool:
+        """Pick up an object in front of the gripper: open → lower → close → raise.
+
+        Returns False (and does nothing) if the arm isn't available, so it's
+        safe to call unconditionally.
+        """
+        if not self.available:
+            return False
+        self.open_gripper();  time.sleep(settle)
+        self.lift_down();     time.sleep(settle)
+        self.close_gripper(); time.sleep(settle)
+        self.lift_up();       time.sleep(settle)
+        return self.available  # False if the board dropped mid-sequence
+
+    def place(self, settle: float = _SEQ_SETTLE_S) -> bool:
+        """Put down whatever is held: lower → open → raise."""
+        if not self.available:
+            return False
+        self.lift_down();     time.sleep(settle)
+        self.open_gripper();  time.sleep(settle)
+        self.lift_up();       time.sleep(settle)
+        return self.available
+
+    def self_test(self, pause: float = 0.8) -> dict:
+        """Hardware check for 'is the arm actually working?'.
+
+        Moves each servo through its range so an operator can confirm the arm
+        physically responds, and returns a structured result. Safe with no arm
+        (reports unavailable instead of raising). Intended to be run on an
+        arm-equipped robot: watch the arm and confirm each printed step moves.
+        """
+        result = {"available": self.available, "error": self.error(), "steps": {}, "ok": False}
+        if not self.available:
+            print(f"[arm.self_test] no working arm detected: {self.error()}")
+            return result
+        sequence = [
+            ("gripper_open",   self.open_gripper),
+            ("gripper_close",  self.close_gripper),
+            ("gripper_open_2", self.open_gripper),
+            ("lift_up",        self.lift_up),
+            ("lift_down",      self.lift_down),
+            ("lift_mid",       lambda: self.set_lift(_LIFT_CARRY)),
+        ]
+        print("[arm.self_test] watch the arm — each step below should visibly move:")
+        for name, fn in sequence:
+            ok = bool(fn())
+            result["steps"][name] = ok
+            print(f"   {name:<14} {'sent OK' if ok else 'FAILED'}")
+            time.sleep(pause)
+        result["ok"] = all(result["steps"].values())
+        print(
+            f"[arm.self_test] {'ALL STEPS SENT' if result['ok'] else 'SOME STEPS FAILED'} — "
+            "confirm you saw the gripper open/close and the arm raise/lower."
+        )
+        return result
 
     # ── Raw escape hatch ─────────────────────────────────────────────────
     def set_position(self, servo_id: int, position: int, duration: float = _DEFAULT_DURATION_S) -> bool:
