@@ -21,7 +21,12 @@
     {
       "name": "Sound",
       "colour": "20",
-      "block_types": ["say_text", "buzzer_beep"]
+      "block_types": ["say_text", "buzzer_beep", "buzzer_horn"]
+    },
+    {
+      "name": "Camera",
+      "colour": "260",
+      "block_types": ["camera_center", "camera_look", "camera_nod", "camera_shake"]
     },
     {
       "name": "Sensors",

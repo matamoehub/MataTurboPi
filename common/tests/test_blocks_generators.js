@@ -76,19 +76,49 @@ test("every block in blocks.json with a python template has all placeholders cov
   assert.deepStrictEqual(problems, []);
 });
 
+/**
+ * Build sample substitution values straight from each block's OWN args0,
+ * instead of a hand-maintained global dict -- a hardcoded dict silently
+ * goes stale the moment a new block adds a new field/input name (this bit
+ * us for real: adding camera_look's AMPLITUDE arg broke this test until
+ * the dict was updated by hand). Deriving per-block means every new block
+ * is covered automatically.
+ */
+function sampleValuesFor(entry) {
+  const values = {};
+  for (const arg of entry.json.args0 || []) {
+    if (arg.type === "field_number") {
+      values[arg.name] = String(arg.value ?? 1);
+    } else if (arg.type === "field_dropdown") {
+      values[arg.name] = String(arg.options[0][1]); // the first option's underlying value
+    } else if (arg.type === "input_value") {
+      values[arg.name] = "'sample'";
+    }
+  }
+  return values;
+}
+
 test("every statement block's python template renders to a single trimmed line (no stray newlines)", () => {
   const catalogue = JSON.parse(
     fs.readFileSync(path.join(__dirname, "../lib/blocks/blocks.json"), "utf8")
   );
-  const sampleValues = {
-    SECONDS: "1", SPEED: "60", DIRECTION: "left", COLOR: "255, 0, 0",
-    TEXT: "'hi'",
-  };
   for (const entry of catalogue.blocks) {
     if (entry.python === null || entry.python === undefined) continue;
     if (entry.shape === "value") continue;
-    const code = buildPythonFromTemplate(entry.python, sampleValues);
+    const code = buildPythonFromTemplate(entry.python, sampleValuesFor(entry));
     assert.ok(!code.includes("\n"), `${entry.type}: template should be one line, got: ${code}`);
+    assert.ok(code.trim().length > 0, `${entry.type}: template rendered empty`);
+  }
+});
+
+test("every value block's python template renders to a non-empty expression", () => {
+  const catalogue = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "../lib/blocks/blocks.json"), "utf8")
+  );
+  for (const entry of catalogue.blocks) {
+    if (entry.python === null || entry.python === undefined) continue;
+    if (entry.shape !== "value") continue;
+    const code = buildPythonFromTemplate(entry.python, sampleValuesFor(entry));
     assert.ok(code.trim().length > 0, `${entry.type}: template rendered empty`);
   }
 });

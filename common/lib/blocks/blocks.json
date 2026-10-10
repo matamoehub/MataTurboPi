@@ -172,6 +172,79 @@
       }
     },
     {
+      "type": "buzzer_horn",
+      "category": "Sound",
+      "python": "myRobot.horn()",
+      "json": {
+        "type": "buzzer_horn",
+        "message0": "honk horn",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 20,
+        "tooltip": "Play the horn sound."
+      }
+    },
+    {
+      "type": "camera_center",
+      "category": "Camera",
+      "python": "myRobot.camera.center()",
+      "json": {
+        "type": "camera_center",
+        "message0": "camera look centre",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 260,
+        "tooltip": "Point the camera head straight ahead."
+      }
+    },
+    {
+      "type": "camera_look",
+      "category": "Camera",
+      "python": "myRobot.camera.{DIRECTION}(amplitude={AMPLITUDE})",
+      "json": {
+        "type": "camera_look",
+        "message0": "camera look %1 by %2",
+        "args0": [
+          {
+            "type": "field_dropdown",
+            "name": "DIRECTION",
+            "options": [["left", "left"], ["right", "right"], ["up", "up"], ["down", "down"]]
+          },
+          {"type": "field_number", "name": "AMPLITUDE", "value": 250, "min": 0, "max": 500, "precision": 10}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 260,
+        "tooltip": "Turn the camera head to look a direction and hold it there."
+      }
+    },
+    {
+      "type": "camera_nod",
+      "category": "Camera",
+      "python": "myRobot.camera.nod()",
+      "json": {
+        "type": "camera_nod",
+        "message0": "camera nod (yes)",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 260,
+        "tooltip": "Nod the camera head up and down, like saying yes."
+      }
+    },
+    {
+      "type": "camera_shake",
+      "category": "Camera",
+      "python": "myRobot.camera.shake()",
+      "json": {
+        "type": "camera_shake",
+        "message0": "camera shake (no)",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 260,
+        "tooltip": "Shake the camera head left and right, like saying no."
+      }
+    },
+    {
       "type": "sensor_distance_cm",
       "category": "Sensors",
       "python": "blocks_runtime.distance_cm_or(myRobot, 999)",
