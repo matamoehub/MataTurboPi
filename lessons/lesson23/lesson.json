@@ -1,0 +1,21 @@
+{
+  "id": "lesson23",
+  "title": "Lesson 23 — Gripper Challenges V2",
+  "description": "A challenge variant of Lesson 22: complete a set of gripper tasks — grab on command, find-and-grab, fetch-and-deliver, and colour sorting.",
+  "summary": "Hands-on gripper tasks to complete: grab, find-and-grab, deliver, and sort with the claw.",
+  "tags": [
+    "Robotic arm",
+    "Gripper",
+    "Colour detection",
+    "Tracking",
+    "Challenge"
+  ],
+  "has_demo": false,
+  "levels": [
+    {
+      "id": "level_1",
+      "title": "Level 1 (Challenges)",
+      "entry": "Lesson23.ipynb"
+    }
+  ]
+}
