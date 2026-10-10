@@ -1,0 +1,8 @@
+{
+  "catalogue_version": 1,
+  "min_student_robot_v2_version": "2.6.2",
+  "description": "First block catalogue for TurboPi: move, eyes, sound, sensors, claw.",
+  "blocks_file": "blocks.json",
+  "toolbox_file": "toolbox.json",
+  "lesson_schema_file": "lesson_schema.json"
+}

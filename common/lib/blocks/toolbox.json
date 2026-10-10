@@ -1,0 +1,61 @@
+{
+  "format": "turbopi-block-toolbox",
+  "format_version": 1,
+  "kind": "categoryToolbox",
+  "default_categories": [
+    {
+      "name": "Events",
+      "colour": "290",
+      "block_types": ["when_run"]
+    },
+    {
+      "name": "Move",
+      "colour": "160",
+      "block_types": ["move_forward", "move_backward", "move_strafe", "move_turn", "move_stop", "wait_seconds"]
+    },
+    {
+      "name": "Eyes",
+      "colour": "300",
+      "block_types": ["eyes_set_color"]
+    },
+    {
+      "name": "Sound",
+      "colour": "20",
+      "block_types": ["say_text", "buzzer_beep"]
+    },
+    {
+      "name": "Sensors",
+      "colour": "65",
+      "block_types": ["sensor_distance_cm", "sensor_ball_direction_is"]
+    },
+    {
+      "name": "Claw",
+      "colour": "210",
+      "block_types": ["arm_test", "arm_ready", "arm_grab", "arm_place"]
+    },
+    {
+      "name": "Logic",
+      "colour": "210",
+      "block_types": ["controls_if", "logic_compare", "logic_operation", "logic_boolean", "logic_negate"],
+      "source": "blockly-core"
+    },
+    {
+      "name": "Loops",
+      "colour": "120",
+      "block_types": ["controls_repeat_ext", "controls_whileUntil"],
+      "source": "blockly-core"
+    },
+    {
+      "name": "Text",
+      "colour": "160",
+      "block_types": ["text"],
+      "source": "blockly-core"
+    },
+    {
+      "name": "Math",
+      "colour": "230",
+      "block_types": ["math_number", "math_arithmetic"],
+      "source": "blockly-core"
+    }
+  ]
+}

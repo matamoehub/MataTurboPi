@@ -1,0 +1,16 @@
+{
+  "format": "turbopi-blocks-lesson-schema",
+  "format_version": 1,
+  "description": "What a *.blocks.json lesson template (in lessons/lessonNN/level_N/) must contain. See docs/blockly_build_plan.md M6 / docs/blockly_blocks_plan.md 4.3.",
+  "required_top_level_keys": ["format", "format_version", "template_id", "template_version", "catalogue_min_version", "title", "steps"],
+  "format_value": "turbopi-blocks-lesson",
+  "step_required_keys": ["id", "instructions", "toolbox"],
+  "step_optional_keys": ["starter", "locked", "hint", "show_python"],
+  "notes": [
+    "template_id should be '<lesson_id>/<level_id>', matching the lesson.json entry that points at this file.",
+    "steps[].toolbox is a list of block 'type' names from blocks.json — only those blocks are offered in the palette for that step. 'when_run' should be included in at least the first step.",
+    "steps[].locked is a list of block ids (Blockly instance ids from the starter workspace, not block types) that the student can't move or delete.",
+    "steps[].starter, when present, is a Blockly workspace JSON blob (Blockly.serialization.workspaces.save output) — the blocks already on the canvas when the student opens that step.",
+    "A student's saved *.blocks.json file (in their workspace) uses a different, smaller shape: it stores only their per-step workspace + progress, not instructions/toolbox/locked (those come from the template). See docs/blockly_blocks_plan.md 6.2."
+  ]
+}

@@ -1,0 +1,265 @@
+{
+  "format": "turbopi-block-catalogue",
+  "format_version": 1,
+  "blocks": [
+    {
+      "type": "when_run",
+      "category": "Events",
+      "python": null,
+      "is_event_root": true,
+      "json": {
+        "type": "when_run",
+        "message0": "when Run clicked",
+        "nextStatement": null,
+        "colour": 290,
+        "tooltip": "The program starts here. Every program needs exactly one of these.",
+        "deletable": false,
+        "movable": false
+      }
+    },
+    {
+      "type": "move_forward",
+      "category": "Move",
+      "python": "myRobot.move.forward(seconds={SECONDS}, speed={SPEED})",
+      "json": {
+        "type": "move_forward",
+        "message0": "move forward for %1 seconds at speed %2",
+        "args0": [
+          {"type": "field_number", "name": "SECONDS", "value": 1, "min": 0, "max": 30, "precision": 0.1},
+          {"type": "field_number", "name": "SPEED", "value": 60, "min": 0, "max": 100, "precision": 1}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 160,
+        "tooltip": "Drive forward for a number of seconds."
+      }
+    },
+    {
+      "type": "move_backward",
+      "category": "Move",
+      "python": "myRobot.move.backward(seconds={SECONDS}, speed={SPEED})",
+      "json": {
+        "type": "move_backward",
+        "message0": "move backward for %1 seconds at speed %2",
+        "args0": [
+          {"type": "field_number", "name": "SECONDS", "value": 1, "min": 0, "max": 30, "precision": 0.1},
+          {"type": "field_number", "name": "SPEED", "value": 60, "min": 0, "max": 100, "precision": 1}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 160,
+        "tooltip": "Drive backward for a number of seconds."
+      }
+    },
+    {
+      "type": "move_strafe",
+      "category": "Move",
+      "python": "myRobot.move.{DIRECTION}(seconds={SECONDS}, speed={SPEED})",
+      "json": {
+        "type": "move_strafe",
+        "message0": "strafe %1 for %2 seconds at speed %3",
+        "args0": [
+          {"type": "field_dropdown", "name": "DIRECTION", "options": [["left", "left"], ["right", "right"]]},
+          {"type": "field_number", "name": "SECONDS", "value": 0.5, "min": 0, "max": 30, "precision": 0.1},
+          {"type": "field_number", "name": "SPEED", "value": 60, "min": 0, "max": 100, "precision": 1}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 160,
+        "tooltip": "Strafe sideways (sliding, not turning) for a number of seconds."
+      }
+    },
+    {
+      "type": "move_turn",
+      "category": "Move",
+      "python": "myRobot.move.turn_{DIRECTION}(seconds={SECONDS}, speed={SPEED})",
+      "json": {
+        "type": "move_turn",
+        "message0": "turn %1 for %2 seconds at speed %3",
+        "args0": [
+          {"type": "field_dropdown", "name": "DIRECTION", "options": [["left", "left"], ["right", "right"]]},
+          {"type": "field_number", "name": "SECONDS", "value": 0.3, "min": 0, "max": 30, "precision": 0.1},
+          {"type": "field_number", "name": "SPEED", "value": 60, "min": 0, "max": 100, "precision": 1}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 160,
+        "tooltip": "Turn on the spot for a number of seconds."
+      }
+    },
+    {
+      "type": "move_stop",
+      "category": "Move",
+      "python": "myRobot.stop()",
+      "json": {
+        "type": "move_stop",
+        "message0": "stop moving",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 160,
+        "tooltip": "Stop the motors right away."
+      }
+    },
+    {
+      "type": "wait_seconds",
+      "category": "Move",
+      "python": "time.sleep({SECONDS})",
+      "json": {
+        "type": "wait_seconds",
+        "message0": "wait %1 seconds",
+        "args0": [
+          {"type": "field_number", "name": "SECONDS", "value": 1, "min": 0, "max": 30, "precision": 0.1}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 160,
+        "tooltip": "Pause the program for a number of seconds."
+      }
+    },
+    {
+      "type": "eyes_set_color",
+      "category": "Eyes",
+      "python": "myRobot.eyes.set_both({COLOR})",
+      "json": {
+        "type": "eyes_set_color",
+        "message0": "set eyes to %1",
+        "args0": [
+          {
+            "type": "field_dropdown",
+            "name": "COLOR",
+            "options": [
+              ["red", "255, 0, 0"],
+              ["green", "0, 255, 0"],
+              ["blue", "0, 0, 255"],
+              ["yellow", "255, 255, 0"],
+              ["off", "0, 0, 0"]
+            ]
+          }
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 300,
+        "tooltip": "Change the colour of both eyes."
+      }
+    },
+    {
+      "type": "say_text",
+      "category": "Sound",
+      "python": "myRobot.voice.say({TEXT})",
+      "json": {
+        "type": "say_text",
+        "message0": "say %1",
+        "args0": [
+          {"type": "input_value", "name": "TEXT", "check": "String"}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 20,
+        "tooltip": "Speak some text out loud."
+      }
+    },
+    {
+      "type": "buzzer_beep",
+      "category": "Sound",
+      "python": "myRobot.buzzer.beep(freq=1000, duration_s=0.2)",
+      "json": {
+        "type": "buzzer_beep",
+        "message0": "beep",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 20,
+        "tooltip": "Play a short beep."
+      }
+    },
+    {
+      "type": "sensor_distance_cm",
+      "category": "Sensors",
+      "python": "blocks_runtime.distance_cm_or(myRobot, 999)",
+      "shape": "value",
+      "json": {
+        "type": "sensor_distance_cm",
+        "message0": "distance (cm)",
+        "output": "Number",
+        "colour": 65,
+        "tooltip": "How far away the nearest thing in front is, in centimetres. Reports 999 when nothing is in range."
+      }
+    },
+    {
+      "type": "sensor_ball_direction_is",
+      "category": "Sensors",
+      "python": "blocks_runtime.ball_direction_is(myRobot, {COLOR}, {DIRECTION})",
+      "shape": "value",
+      "json": {
+        "type": "sensor_ball_direction_is",
+        "message0": "ball %1 is %2 ?",
+        "args0": [
+          {
+            "type": "field_dropdown",
+            "name": "COLOR",
+            "options": [["red", "\"red\""], ["green", "\"green\""], ["blue", "\"blue\""]]
+          },
+          {
+            "type": "field_dropdown",
+            "name": "DIRECTION",
+            "options": [["left", "\"left\""], ["center", "\"center\""], ["right", "\"right\""], ["lost", "\"lost\""]]
+          }
+        ],
+        "output": "Boolean",
+        "colour": 65,
+        "tooltip": "True when the camera sees that colour ball in that direction."
+      }
+    },
+    {
+      "type": "arm_test",
+      "category": "Claw",
+      "python": "myRobot.arm.test()",
+      "json": {
+        "type": "arm_test",
+        "message0": "test claw",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 210,
+        "tooltip": "Move the claw through its full range so you can check it works. Does nothing on a robot with no claw."
+      }
+    },
+    {
+      "type": "arm_ready",
+      "category": "Claw",
+      "python": "myRobot.arm.ready()",
+      "json": {
+        "type": "arm_ready",
+        "message0": "claw ready",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 210,
+        "tooltip": "Open the claw and set the arm to a middle height."
+      }
+    },
+    {
+      "type": "arm_grab",
+      "category": "Claw",
+      "python": "myRobot.arm.grab()",
+      "json": {
+        "type": "arm_grab",
+        "message0": "grab with claw",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 210,
+        "tooltip": "Open, lower, close, raise — picks up whatever is in front of the claw."
+      }
+    },
+    {
+      "type": "arm_place",
+      "category": "Claw",
+      "python": "myRobot.arm.place()",
+      "json": {
+        "type": "arm_place",
+        "message0": "put down with claw",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 210,
+        "tooltip": "Lower, open, raise — puts down whatever the claw is holding."
+      }
+    }
+  ]
+}
