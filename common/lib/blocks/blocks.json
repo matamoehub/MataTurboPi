@@ -335,6 +335,198 @@
       }
     },
     {
+      "type": "move_drift",
+      "category": "Move",
+      "python": "myRobot.move.drift_{DIRECTION}(seconds={SECONDS}, speed={SPEED})",
+      "json": {
+        "type": "move_drift",
+        "message0": "drift %1 for %2 seconds at speed %3",
+        "args0": [
+          {"type": "field_dropdown", "name": "DIRECTION", "options": [["left", "left"], ["right", "right"]]},
+          {"type": "field_number", "name": "SECONDS", "value": 1, "min": 0, "max": 30, "precision": 0.1},
+          {"type": "field_number", "name": "SPEED", "value": 60, "min": 0, "max": 100, "precision": 1}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 160,
+        "tooltip": "Drift sideways while curving (a blend of strafe and turn) for a number of seconds."
+      }
+    },
+    {
+      "type": "eyes_off",
+      "category": "Eyes",
+      "python": "myRobot.eyes.off()",
+      "json": {
+        "type": "eyes_off",
+        "message0": "turn eyes off",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 300,
+        "tooltip": "Turn both eyes off."
+      }
+    },
+    {
+      "type": "eyes_on",
+      "category": "Eyes",
+      "python": "myRobot.eyes.on()",
+      "json": {
+        "type": "eyes_on",
+        "message0": "turn eyes on",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 300,
+        "tooltip": "Turn both eyes back on (a friendly default colour)."
+      }
+    },
+    {
+      "type": "eyes_wink",
+      "category": "Eyes",
+      "python": "myRobot.eyes.wink(side={SIDE})",
+      "json": {
+        "type": "eyes_wink",
+        "message0": "wink %1 eye",
+        "args0": [
+          {"type": "field_dropdown", "name": "SIDE", "options": [["left", "\"left\""], ["right", "\"right\""]]}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 300,
+        "tooltip": "Wink one eye, then turn it back on."
+      }
+    },
+    {
+      "type": "eyes_start_blink",
+      "category": "Eyes",
+      "is_advanced": true,
+      "python": "myRobot.eyes.start_blink(every_s={EVERY_S}, blank_s={BLANK_S})",
+      "json": {
+        "type": "eyes_start_blink",
+        "message0": "start blinking every %1 s for %2 s",
+        "args0": [
+          {"type": "field_number", "name": "EVERY_S", "value": 3, "min": 0.2, "max": 30, "precision": 0.1},
+          {"type": "field_number", "name": "BLANK_S", "value": 0.5, "min": 0.1, "max": 5, "precision": 0.1}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 300,
+        "tooltip": "Keep blinking in the background until stopped."
+      }
+    },
+    {
+      "type": "eyes_stop_blink",
+      "category": "Eyes",
+      "is_advanced": true,
+      "python": "myRobot.eyes.stop_blink()",
+      "json": {
+        "type": "eyes_stop_blink",
+        "message0": "stop blinking",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 300,
+        "tooltip": "Stop the background blinking started by \"start blinking\"."
+      }
+    },
+    {
+      "type": "camera_glance",
+      "category": "Camera",
+      "python": "myRobot.camera.glance_{DIRECTION}(amplitude={AMPLITUDE})",
+      "json": {
+        "type": "camera_glance",
+        "message0": "glance %1 by %2",
+        "args0": [
+          {"type": "field_dropdown", "name": "DIRECTION", "options": [["left", "left"], ["right", "right"]]},
+          {"type": "field_number", "name": "AMPLITUDE", "value": 250, "min": 0, "max": 500, "precision": 1}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 260,
+        "tooltip": "Quick look to one side, then back to centre."
+      }
+    },
+    {
+      "type": "buzzer_play_notes",
+      "category": "Sound",
+      "is_advanced": true,
+      "python": "myRobot.buzzer.play_notes({SCORE}, bpm={BPM})",
+      "json": {
+        "type": "buzzer_play_notes",
+        "message0": "play notes %1 at %2 bpm",
+        "args0": [
+          {"type": "input_value", "name": "SCORE", "check": "String"},
+          {"type": "field_number", "name": "BPM", "value": 120, "min": 30, "max": 300, "precision": 1}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 20,
+        "tooltip": "Play a tune, e.g. \"C4:1 D4:1 E4:2\" -- note name, octave, then beats."
+      }
+    },
+    {
+      "type": "voice_set_volume",
+      "category": "Sound",
+      "is_advanced": true,
+      "python": "myRobot.voice.set_volume({PERCENT})",
+      "json": {
+        "type": "voice_set_volume",
+        "message0": "set voice volume to %1 %",
+        "args0": [
+          {"type": "field_number", "name": "PERCENT", "value": 80, "min": 0, "max": 100, "precision": 1}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 20,
+        "tooltip": "Set how loud \"say\" and sounds are, as a percentage."
+      }
+    },
+    {
+      "type": "sensor_is_closer_than",
+      "category": "Sensors",
+      "python": "myRobot.sonar.is_closer_than({THRESHOLD_CM})",
+      "shape": "value",
+      "json": {
+        "type": "sensor_is_closer_than",
+        "message0": "something closer than %1 cm ?",
+        "args0": [
+          {"type": "field_number", "name": "THRESHOLD_CM", "value": 15, "min": 0, "max": 400, "precision": 1}
+        ],
+        "output": "Boolean",
+        "colour": 65,
+        "tooltip": "True only if something is in range AND closer than this distance."
+      }
+    },
+    {
+      "type": "arm_gripper",
+      "category": "Claw",
+      "python": "myRobot.arm.{ACTION}()",
+      "json": {
+        "type": "arm_gripper",
+        "message0": "%1 the gripper",
+        "args0": [
+          {"type": "field_dropdown", "name": "ACTION", "options": [["open", "open_gripper"], ["close", "close_gripper"]]}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 210,
+        "tooltip": "Open or close the claw's gripper on its own, without the full grab/place sequence."
+      }
+    },
+    {
+      "type": "arm_lift",
+      "category": "Claw",
+      "python": "myRobot.arm.lift_{DIRECTION}()",
+      "json": {
+        "type": "arm_lift",
+        "message0": "lift arm %1",
+        "args0": [
+          {"type": "field_dropdown", "name": "DIRECTION", "options": [["up", "up"], ["down", "down"]]}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 210,
+        "tooltip": "Raise or lower the arm on its own, without the full grab/place sequence."
+      }
+    },
+    {
       "type": "note_text",
       "category": "Notes",
       "python": "# {TEXT}",

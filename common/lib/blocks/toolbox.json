@@ -11,17 +11,17 @@
     {
       "name": "Move",
       "colour": "160",
-      "block_types": ["move_forward", "move_backward", "move_strafe", "move_turn", "move_stop", "wait_seconds"]
+      "block_types": ["move_forward", "move_backward", "move_strafe", "move_turn", "move_stop", "move_drift", "wait_seconds"]
     },
     {
       "name": "Eyes",
       "colour": "300",
-      "block_types": ["eyes_set_color"]
+      "block_types": ["eyes_set_color", "eyes_off", "eyes_on", "eyes_wink"]
     },
     {
       "name": "more",
       "colour": "300",
-      "block_types": ["eyes_set_rgb"]
+      "block_types": ["eyes_set_rgb", "eyes_start_blink", "eyes_stop_blink"]
     },
     {
       "name": "Sound",
@@ -29,19 +29,24 @@
       "block_types": ["say_text", "buzzer_beep", "buzzer_horn"]
     },
     {
+      "name": "more",
+      "colour": "20",
+      "block_types": ["buzzer_play_notes", "voice_set_volume"]
+    },
+    {
       "name": "Camera",
       "colour": "260",
-      "block_types": ["camera_center", "camera_look", "camera_nod", "camera_shake"]
+      "block_types": ["camera_center", "camera_look", "camera_nod", "camera_shake", "camera_glance"]
     },
     {
       "name": "Sensors",
       "colour": "65",
-      "block_types": ["sensor_distance_cm", "sensor_ball_direction_is"]
+      "block_types": ["sensor_distance_cm", "sensor_ball_direction_is", "sensor_is_closer_than"]
     },
     {
       "name": "Claw",
       "colour": "210",
-      "block_types": ["arm_test", "arm_ready", "arm_grab", "arm_place"]
+      "block_types": ["arm_test", "arm_ready", "arm_grab", "arm_place", "arm_gripper", "arm_lift"]
     },
     {
       "name": "Logic",
