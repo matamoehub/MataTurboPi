@@ -122,6 +122,20 @@ def start(base_speed: float = 300, rate_hz: float = 20, verbose: bool = False):
     # is running on, and that mismatch is otherwise invisible without SSH.
     print(f"ROS_DOMAIN_ID={os.environ.get('ROS_DOMAIN_ID', '0')}", flush=True)
     robot = srv2.bot(base_speed=base_speed, rate_hz=rate_hz, verbose=verbose)
+
+    # Prints exactly which file each ROS-backed module loaded from, in this
+    # subprocess -- a block program is a fresh process every run (unlike a
+    # Jupyter kernel, which stays alive for a whole session), so if a stale
+    # copy exists anywhere else on PYTHONPATH this is the only way to catch
+    # it without SSHing in. Move/camera running with no error and no
+    # physical effect, while buzzer/eyes/sensors work, is consistent with
+    # this -- same symptom a stale robot_moves.py or robot_controller_api.py
+    # (pointed at a different/old topic or a no-op) would produce.
+    for _mod_name in ("robot_moves", "robot_controller_api", "camera_lib", "buzzer_lib"):
+        _mod = sys.modules.get(_mod_name)
+        _where = getattr(_mod, "__file__", "not loaded") if _mod is not None else "not loaded"
+        print(f"module {_mod_name}: {_where}", flush=True)
+
     print(_READY_MARKER, flush=True)
     return robot
 
