@@ -495,6 +495,32 @@
       }
     },
     {
+      "type": "sensor_detect",
+      "category": "Sensors",
+      "is_advanced": true,
+      "python": "blocks_runtime.detect_is(myRobot, {KIND})",
+      "shape": "value",
+      "json": {
+        "type": "sensor_detect",
+        "message0": "%1 detected?",
+        "args0": [
+          {
+            "type": "field_dropdown",
+            "name": "KIND",
+            "options": [
+              ["an object", "\"object\""],
+              ["a face", "\"face\""],
+              ["a hand", "\"hand\""],
+              ["a person (pose)", "\"pose\""]
+            ]
+          }
+        ],
+        "output": "Boolean",
+        "colour": 65,
+        "tooltip": "Uses the camera to look for an object/face/hand/person. Slower than the colour sensors -- use inside an \"if\"."
+      }
+    },
+    {
       "type": "arm_gripper",
       "category": "Claw",
       "python": "myRobot.arm.{ACTION}()",

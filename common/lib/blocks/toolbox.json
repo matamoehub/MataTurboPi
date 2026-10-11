@@ -44,6 +44,11 @@
       "block_types": ["sensor_distance_cm", "sensor_ball_direction_is", "sensor_is_closer_than"]
     },
     {
+      "name": "more",
+      "colour": "65",
+      "block_types": ["sensor_detect"]
+    },
+    {
       "name": "Claw",
       "colour": "210",
       "block_types": ["arm_test", "arm_ready", "arm_grab", "arm_place", "arm_gripper", "arm_lift"]

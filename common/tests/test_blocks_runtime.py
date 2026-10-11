@@ -294,6 +294,70 @@ def test_ball_direction_is_treats_vision_failure_as_lost():
     assert br.ball_direction_is(robot, "red", "left") is False
 
 
+def test_detect_is_true_when_found_key_is_true():
+    br = _load_blocks_runtime()
+
+    class _Found:
+        def detect_faces(self, show=True, **kwargs):
+            return {"found": True, "count": 1, "faces": [{}]}
+
+    robot = _FakeRobot()
+    robot.vision = _Found()
+    assert br.detect_is(robot, "face") is True
+
+
+def test_detect_is_false_when_found_key_is_false():
+    br = _load_blocks_runtime()
+
+    class _NotFound:
+        def detect_objects(self, show=True, **kwargs):
+            return {"found": False, "count": 0, "objects": []}
+
+    robot = _FakeRobot()
+    robot.vision = _NotFound()
+    assert br.detect_is(robot, "object") is False
+
+
+def test_detect_is_false_on_vision_failure():
+    br = _load_blocks_runtime()
+
+    class _Angry:
+        def recognize_hands(self, show=True, **kwargs):
+            raise RuntimeError("mediapipe not installed")
+
+    robot = _FakeRobot()
+    robot.vision = _Angry()
+    assert br.detect_is(robot, "hand") is False
+
+
+def test_detect_is_false_for_unknown_kind():
+    br = _load_blocks_runtime()
+    robot = _FakeRobot()
+    assert br.detect_is(robot, "unicorn") is False
+
+
+def test_detect_is_covers_all_four_kinds():
+    br = _load_blocks_runtime()
+
+    class _AllFound:
+        def detect_objects(self, show=True, **kwargs):
+            return {"found": True}
+
+        def detect_faces(self, show=True, **kwargs):
+            return {"found": True}
+
+        def recognize_hands(self, show=True, **kwargs):
+            return {"found": True}
+
+        def detect_pose(self, show=True, **kwargs):
+            return {"found": True}
+
+    robot = _FakeRobot()
+    robot.vision = _AllFound()
+    for kind in ("object", "face", "hand", "pose"):
+        assert br.detect_is(robot, kind) is True
+
+
 def test_friendly_message_maps_known_failure_patterns():
     br = _load_blocks_runtime()
     assert br._friendly_message(RuntimeError("arm not available")) == "This robot has no claw."

@@ -206,6 +206,35 @@ def ball_direction_is(robot, color: str, direction: str) -> bool:
     return decision.get("direction") == direction
 
 
+_DETECT_METHODS = {
+    "object": "detect_objects",
+    "face": "detect_faces",
+    "hand": "recognize_hands",
+    "pose": "detect_pose",
+}
+
+
+def detect_is(robot, kind: str) -> bool:
+    """sensor_detect block helper. kind: one of _DETECT_METHODS's keys.
+
+    Every detect_objects/detect_faces/recognize_hands/detect_pose on
+    student_robot_v2's vision namespace returns a dict with the same
+    "found" key (confirmed in vision_lib.py), so one helper covers all
+    four -- show=False so a block run never pops up a Jupyter-style
+    display window. Missing camera/model (e.g. YOLO not installed) is
+    the same "feature unavailable" case as a missing claw -- caught and
+    reported as False rather than failing the whole program."""
+    method_name = _DETECT_METHODS.get(kind)
+    if method_name is None:
+        return False
+    try:
+        method = getattr(robot.vision, method_name)
+        result = method(show=False)
+    except Exception:
+        return False
+    return bool(result.get("found"))
+
+
 def _report_error(exc: Exception) -> None:
     message = _friendly_message(exc)
     block_id = _last_block_id or ""
@@ -220,4 +249,5 @@ __all__ = [
     "guard",
     "distance_cm_or",
     "ball_direction_is",
+    "detect_is",
 ]
