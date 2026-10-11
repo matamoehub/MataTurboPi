@@ -148,6 +148,41 @@ def test_finish_settle_delay_defaults_to_a_short_positive_pause():
     assert 0 < br._EXIT_SETTLE_S <= 1.0  # short enough not to make Stop feel sluggish
 
 
+def _clear_domain_env(br):
+    for key in ("ROS_DOMAIN_ID", "ROBOT_DOMAIN_ID", "ROBOT_NUMBER", "ROBOT_NAME", "ROBOT_ID", "HOSTNAME"):
+        os.environ.pop(key, None)
+
+
+def test_resolve_ros_domain_prefers_explicit_ros_domain_id():
+    br = _load_blocks_runtime()
+    _clear_domain_env(br)
+    try:
+        os.environ["ROS_DOMAIN_ID"] = "8"
+        os.environ["ROBOT_NAME"] = "Mata99"  # should be ignored -- explicit var wins
+        assert br._resolve_ros_domain() == "8"
+    finally:
+        _clear_domain_env(br)
+
+
+def test_resolve_ros_domain_parses_trailing_digits_from_robot_name():
+    br = _load_blocks_runtime()
+    _clear_domain_env(br)
+    try:
+        os.environ["ROBOT_NAME"] = "Mata08"
+        assert br._resolve_ros_domain() == "8"
+    finally:
+        _clear_domain_env(br)
+
+
+def test_resolve_ros_domain_falls_back_to_zero_when_nothing_is_set():
+    br = _load_blocks_runtime()
+    _clear_domain_env(br)
+    try:
+        assert br._resolve_ros_domain() == "0"
+    finally:
+        _clear_domain_env(br)
+
+
 def test_finish_is_safe_with_no_robot():
     br = _load_blocks_runtime()
     out = _capture_stdout(lambda: br.finish(None))

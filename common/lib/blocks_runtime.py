@@ -28,6 +28,7 @@ See docs/blockly_blocks_plan.md (4.2) and docs/blockly_build_plan.md (M2).
 from __future__ import annotations
 
 import os
+import re
 import sys
 import time
 import traceback
@@ -73,13 +74,46 @@ def _friendly_message(exc: Exception) -> str:
     return f"Something went wrong: {text}"
 
 
+def _resolve_ros_domain() -> str:
+    """Mirror every lesson's lesson_loader.py::_resolve_domain(): this
+    robot's ROS domain is NOT the ROS default (0) -- every real robot is
+    set up with a domain derived from its own name (e.g. "Mata08" ->
+    domain 8) so robots on the same network don't see each other's ROS
+    traffic. Every notebook lesson resolves this via bootstrap.bootstrap()
+    before touching any ROS-backed library; this runtime used to skip
+    that step entirely and silently run on domain 0 -- any ROS-backed
+    block (move, camera) could then never discover the real hardware
+    controller, which is listening on the robot's real domain."""
+    for key in ("ROS_DOMAIN_ID", "ROBOT_DOMAIN_ID", "ROBOT_NUMBER"):
+        value = os.environ.get(key)
+        if value and value.strip().isdigit():
+            return str(int(value.strip()))
+    for key in ("ROBOT_NAME", "ROBOT_ID", "HOSTNAME"):
+        value = os.environ.get(key)
+        if value:
+            match = re.search(r"(\d+)$", value.strip())
+            if match:
+                return str(int(match.group(1)))
+    return "0"
+
+
 def start(base_speed: float = 300, rate_hz: float = 20, verbose: bool = False):
     """Create and return the shared robot object, printing a ready marker.
 
     Mirrors lesson_header.py's bot() creation so a block program behaves
     exactly like a notebook cell -- same errors, same degraded behaviour
-    when a sensor/attachment isn't present.
+    when a sensor/attachment isn't present. Also mirrors lesson_loader.py's
+    bootstrap step (domain resolution + the RMW/CycloneDDS fixups in
+    bootstrap.setup_ros_env()) -- without it, a block program could use a
+    different ROS_DOMAIN_ID than a notebook cell run on the same robot.
     """
+    os.environ["ROS_DOMAIN_ID"] = _resolve_ros_domain()
+    try:
+        import bootstrap
+        bootstrap.setup_ros_env(default_domain=os.environ["ROS_DOMAIN_ID"])
+    except Exception as exc:
+        print(f"[blocks_runtime] bootstrap.setup_ros_env failed: {exc}", file=sys.stderr)
+
     import student_robot_v2 as srv2
 
     # Printed plainly (not a marker) so it always shows up in the Blocks
