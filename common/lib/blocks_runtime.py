@@ -82,6 +82,11 @@ def start(base_speed: float = 300, rate_hz: float = 20, verbose: bool = False):
     """
     import student_robot_v2 as srv2
 
+    # Printed plainly (not a marker) so it always shows up in the Blocks
+    # page's own Output panel -- ROS-backed blocks (move, camera, buzzer)
+    # only work if this matches the domain the real hardware controller
+    # is running on, and that mismatch is otherwise invisible without SSH.
+    print(f"ROS_DOMAIN_ID={os.environ.get('ROS_DOMAIN_ID', '0')}", flush=True)
     robot = srv2.bot(base_speed=base_speed, rate_hz=rate_hz, verbose=verbose)
     print(_READY_MARKER, flush=True)
     return robot
