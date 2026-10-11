@@ -23,37 +23,39 @@ RATE_HZ: float = float(os.environ.get("RATE_HZ", "20"))
 # On a loaded battery this causes a voltage spike that can trip battery
 # protection or brownout the Pi.
 #
-# The prime runs a brief low-speed forward/backward ONCE per process before
-# the first real move, absorbing the inrush on a low-stakes pulse so the
-# real move draws normal running current only.
+# The prime RAMPS from 0 up to the actually-requested wheel speeds/direction
+# in a few quick steps, ONCE per process before the first real move. Ramping
+# (rather than a fixed forward/backward wiggle) absorbs the same inrush
+# current, but the robot only ever visibly moves in the direction it was
+# actually commanded — no backward blip before a forward move, or vice versa.
 #
 # Confirmed fix: first move after long idle (eyes blinking, camera active,
-# TTS just played) caused visible battery spike — prime eliminated it.
+# TTS just played) caused visible battery spike — priming eliminated it.
 #
 # Set MOTOR_PRIME_ENABLED=0 to disable.
-# Tune MOTOR_PRIME_SPEED and MOTOR_PRIME_SECONDS if needed.
+# Tune MOTOR_RAMP_SECONDS and MOTOR_RAMP_STEPS if needed.
 _MOTOR_PRIME_ENABLED = os.environ.get("MOTOR_PRIME_ENABLED", "1").strip() != "0"
-_MOTOR_PRIME_SPEED   = float(os.environ.get("MOTOR_PRIME_SPEED",   "80"))
-_MOTOR_PRIME_SECONDS = float(os.environ.get("MOTOR_PRIME_SECONDS", "0.12"))
+_MOTOR_RAMP_SECONDS  = float(os.environ.get("MOTOR_RAMP_SECONDS", "0.15"))
+_MOTOR_RAMP_STEPS    = int(os.environ.get("MOTOR_RAMP_STEPS", "4"))
 _MOTORS_PRIMED: bool = False
 
 
-def _ensure_primed() -> None:
-    """Run a one-time low-speed pulse before the first real motor command.
+def _ensure_primed(fl: float, fr: float, rl: float, rr: float) -> None:
+    """Ramp from 0 up to the requested wheel speeds, in the direction
+    actually requested, before the first real move in this process.
 
-    The flag is set BEFORE the prime runs to prevent recursion — _spam()
+    The flag is set BEFORE the ramp runs to prevent recursion — _spam()
     calls _ensure_primed() which would otherwise call _spam() again.
     """
     global _MOTORS_PRIMED
     if _MOTORS_PRIMED or not _MOTOR_PRIME_ENABLED:
         return
     _MOTORS_PRIMED = True   # set first — prevents re-entry
-    s = _MOTOR_PRIME_SPEED
-    t = _MOTOR_PRIME_SECONDS
-    stream_speeds(_pairs_from4(+s, +s, +s, +s), seconds=t, rate_hz=RATE_HZ)
-    time.sleep(0.05)
-    stream_speeds(_pairs_from4(-s, -s, -s, -s), seconds=t, rate_hz=RATE_HZ)
-    time.sleep(0.05)
+    steps = max(1, _MOTOR_RAMP_STEPS)
+    step_t = _MOTOR_RAMP_SECONDS / steps
+    for i in range(1, steps + 1):
+        frac = i / steps
+        stream_speeds(_pairs_from4(fl * frac, fr * frac, rl * frac, rr * frac), seconds=step_t, rate_hz=RATE_HZ)
 
 
 def reset_prime() -> None:
@@ -82,7 +84,7 @@ def _pairs_from4(fl: float, fr: float, rl: float, rr: float) -> List[Tuple[int, 
 
 def _spam(fl: float, fr: float, rl: float, rr: float, seconds: float):
     enable_motors(True)
-    _ensure_primed()
+    _ensure_primed(fl, fr, rl, rr)
     stream_speeds(_pairs_from4(fl, fr, rl, rr), seconds=float(seconds), rate_hz=RATE_HZ)
 
 def stop():
