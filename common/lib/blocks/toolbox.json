@@ -61,6 +61,12 @@
       "colour": "230",
       "block_types": ["math_number", "math_arithmetic"],
       "source": "blockly-core"
+    },
+    {
+      "name": "Functions",
+      "colour": "290",
+      "block_types": ["procedures_defnoreturn", "procedures_callnoreturn"],
+      "source": "blockly-core"
     }
   ]
 }
