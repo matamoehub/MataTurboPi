@@ -77,6 +77,12 @@ function registerBlockGenerators(Blockly, catalogue) {
         } else if (arg.type === "input_value") {
           values[arg.name] =
             pyGen.valueToCode(block, arg.name, pyGen.ORDER_NONE) || "''";
+        } else if (arg.type === "field_input") {
+          // Raw, unescaped substitution -- only safe for a template that
+          // places this inside a Python comment (the only current use:
+          // note_text's "# {TEXT}"). A field_input landing in actual
+          // code would need proper string-literal escaping first.
+          values[arg.name] = String(block.getFieldValue(arg.name)).replace(/[\r\n]+/g, " ");
         }
       }
       const code = buildPythonFromTemplate(template, values);

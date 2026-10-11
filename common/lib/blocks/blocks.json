@@ -333,6 +333,41 @@
         "colour": 210,
         "tooltip": "Lower, open, raise — puts down whatever the claw is holding."
       }
+    },
+    {
+      "type": "note_text",
+      "category": "Notes",
+      "python": "# {TEXT}",
+      "json": {
+        "type": "note_text",
+        "message0": "📝 note: %1",
+        "args0": [
+          {"type": "field_input", "name": "TEXT", "text": "explain what this does"}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 0,
+        "tooltip": "A note for you or your teacher -- same as a # comment in a Jupyter lesson. Doesn't affect the robot."
+      }
+    },
+    {
+      "type": "eyes_set_rgb",
+      "category": "Eyes",
+      "is_advanced": true,
+      "python": "myRobot.eyes.set_both({R}, {G}, {B})",
+      "json": {
+        "type": "eyes_set_rgb",
+        "message0": "set eyes to R %1 G %2 B %3",
+        "args0": [
+          {"type": "field_number", "name": "R", "value": 255, "min": 0, "max": 255, "precision": 1},
+          {"type": "field_number", "name": "G", "value": 0, "min": 0, "max": 255, "precision": 1},
+          {"type": "field_number", "name": "B", "value": 0, "min": 0, "max": 255, "precision": 1}
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 300,
+        "tooltip": "Set both eyes to an exact Red/Green/Blue colour (0-255 each), for colours the named-colour block doesn't have."
+      }
     }
   ]
 }

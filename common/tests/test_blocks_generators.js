@@ -93,6 +93,8 @@ function sampleValuesFor(entry) {
       values[arg.name] = String(arg.options[0][1]); // the first option's underlying value
     } else if (arg.type === "input_value") {
       values[arg.name] = "'sample'";
+    } else if (arg.type === "field_input") {
+      values[arg.name] = String(arg.text ?? "sample");
     }
   }
   return values;

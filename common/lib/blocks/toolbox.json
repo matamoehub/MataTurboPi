@@ -19,6 +19,11 @@
       "block_types": ["eyes_set_color"]
     },
     {
+      "name": "more",
+      "colour": "300",
+      "block_types": ["eyes_set_rgb"]
+    },
+    {
       "name": "Sound",
       "colour": "20",
       "block_types": ["say_text", "buzzer_beep", "buzzer_horn"]
@@ -67,6 +72,11 @@
       "colour": "290",
       "block_types": ["procedures_defnoreturn", "procedures_callnoreturn"],
       "source": "blockly-core"
+    },
+    {
+      "name": "Notes",
+      "colour": "0",
+      "block_types": ["note_text"]
     }
   ]
 }
