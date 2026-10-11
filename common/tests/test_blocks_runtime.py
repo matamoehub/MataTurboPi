@@ -294,6 +294,41 @@ def test_ball_direction_is_treats_vision_failure_as_lost():
     assert br.ball_direction_is(robot, "red", "left") is False
 
 
+def test_hsv_direction_is_defines_profile_then_queries_it():
+    br = _load_blocks_runtime()
+
+    class _Spy:
+        def __init__(self, direction):
+            self.set_calls = []
+            self._direction = direction
+
+        def set_color_profile(self, name, lower_hsv, upper_hsv):
+            self.set_calls.append((name, lower_hsv, upper_hsv))
+
+        def target_position(self, color, show=True, **kwargs):
+            assert color == "blockly_hsv"  # must query the profile it just defined
+            return {"direction": self._direction}
+
+    robot = _FakeRobot()
+    robot.vision = _Spy(direction="left")
+    assert br.hsv_direction_is(robot, 20, 100, 100, 40, 255, 255, "left") is True
+    assert robot.vision.set_calls == [("blockly_hsv", (20, 100, 100), (40, 255, 255))]
+    assert br.hsv_direction_is(robot, 20, 100, 100, 40, 255, 255, "right") is False
+
+
+def test_hsv_direction_is_treats_vision_failure_as_lost():
+    br = _load_blocks_runtime()
+
+    class _Angry:
+        def set_color_profile(self, *a, **kw):
+            raise RuntimeError("camera not available")
+
+    robot = _FakeRobot()
+    robot.vision = _Angry()
+    assert br.hsv_direction_is(robot, 0, 0, 0, 10, 10, 10, "lost") is True
+    assert br.hsv_direction_is(robot, 0, 0, 0, 10, 10, 10, "left") is False
+
+
 def test_detect_is_true_when_found_key_is_true():
     br = _load_blocks_runtime()
 

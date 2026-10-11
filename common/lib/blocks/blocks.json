@@ -495,6 +495,29 @@
       }
     },
     {
+      "type": "sensor_hsv_direction_is",
+      "category": "Sensors",
+      "is_advanced": true,
+      "python": "blocks_runtime.hsv_direction_is(myRobot, {LOWER_H}, {LOWER_S}, {LOWER_V}, {UPPER_H}, {UPPER_S}, {UPPER_V}, {DIRECTION})",
+      "shape": "value",
+      "json": {
+        "type": "sensor_hsv_direction_is",
+        "message0": "custom colour H %1 S %2 V %3 to H %4 S %5 V %6 is %7 ?",
+        "args0": [
+          {"type": "field_number", "name": "LOWER_H", "value": 20, "min": 0, "max": 179, "precision": 1},
+          {"type": "field_number", "name": "LOWER_S", "value": 100, "min": 0, "max": 255, "precision": 1},
+          {"type": "field_number", "name": "LOWER_V", "value": 100, "min": 0, "max": 255, "precision": 1},
+          {"type": "field_number", "name": "UPPER_H", "value": 40, "min": 0, "max": 179, "precision": 1},
+          {"type": "field_number", "name": "UPPER_S", "value": 255, "min": 0, "max": 255, "precision": 1},
+          {"type": "field_number", "name": "UPPER_V", "value": 255, "min": 0, "max": 255, "precision": 1},
+          {"type": "field_dropdown", "name": "DIRECTION", "options": [["left", "\"left\""], ["center", "\"center\""], ["right", "\"right\""], ["lost", "\"lost\""]]}
+        ],
+        "output": "Boolean",
+        "colour": 65,
+        "tooltip": "Looks for a custom colour range instead of the built-in red/green/blue. Paste the \"Copy HSV\" text from the robot's Vision page into the first H field to fill in all six numbers at once."
+      }
+    },
+    {
       "type": "sensor_detect",
       "category": "Sensors",
       "is_advanced": true,

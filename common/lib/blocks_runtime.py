@@ -206,6 +206,32 @@ def ball_direction_is(robot, color: str, direction: str) -> bool:
     return decision.get("direction") == direction
 
 
+_HSV_PROFILE_NAME = "blockly_hsv"
+
+
+def hsv_direction_is(
+    robot,
+    lower_h: int, lower_s: int, lower_v: int,
+    upper_h: int, upper_s: int, upper_v: int,
+    direction: str,
+) -> bool:
+    """sensor_hsv_direction_is block helper -- same role as
+    ball_direction_is, but for a custom HSV range a student pasted in
+    from the Vision page's "Copy HSV" button instead of one of the
+    three built-in named colours (red/green/blue). Defines a profile
+    named "blockly_hsv" on every call (set_color_profile is cheap --
+    it just stores the tuple, no camera access) and queries it the
+    same way target_position does."""
+    try:
+        robot.vision.set_color_profile(
+            _HSV_PROFILE_NAME, (lower_h, lower_s, lower_v), (upper_h, upper_s, upper_v)
+        )
+        decision = robot.vision.target_position(_HSV_PROFILE_NAME, show=False)
+    except Exception:
+        return direction == "lost"
+    return decision.get("direction") == direction
+
+
 _DETECT_METHODS = {
     "object": "detect_objects",
     "face": "detect_faces",
@@ -249,5 +275,6 @@ __all__ = [
     "guard",
     "distance_cm_or",
     "ball_direction_is",
+    "hsv_direction_is",
     "detect_is",
 ]

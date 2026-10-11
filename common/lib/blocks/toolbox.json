@@ -46,7 +46,7 @@
     {
       "name": "more",
       "colour": "65",
-      "block_types": ["sensor_detect"]
+      "block_types": ["sensor_hsv_direction_is", "sensor_detect"]
     },
     {
       "name": "Claw",
