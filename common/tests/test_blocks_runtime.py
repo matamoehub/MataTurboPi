@@ -20,6 +20,7 @@ sys.exit(1 if failed else 0)
 "
 """
 import io
+import os
 import sys
 import contextlib
 from pathlib import Path
@@ -88,6 +89,63 @@ def test_finish_stops_the_robot_and_prints_done_marker():
     out = _capture_stdout(lambda: br.finish(robot))
     assert robot.stopped is True
     assert "\x1eDONE" in out
+
+
+def test_finish_stops_the_robot_before_the_settle_delay_not_after():
+    """Motors must stop with no delay (safety); the settle pause -- added
+    after a real pilot-robot bug where a quick eye-colour/sound command
+    appeared to do nothing because the process exited before the write
+    reached hardware -- comes AFTER stop(), not before it. A sequence
+    check, not just a timing check: if stop() ever moved after the sleep,
+    this would catch it even on a fast machine where timing alone might not."""
+    br = _load_blocks_runtime()
+    robot = _FakeRobot()
+    call_order = []
+
+    original_sleep = br.time.sleep
+    def recording_sleep(seconds):
+        call_order.append(("sleep", seconds))
+
+    original_stop = robot.stop
+    def recording_stop():
+        call_order.append(("stop", None))
+        original_stop()
+
+    robot.stop = recording_stop
+    br.time.sleep = recording_sleep
+    try:
+        br.finish(robot)
+    finally:
+        br.time.sleep = original_sleep
+
+    assert [c[0] for c in call_order] == ["stop", "sleep"]
+
+
+def test_finish_settle_delay_is_configurable_via_env_var():
+    # This file is run with plain function calls (no pytest fixtures), so
+    # the env var is set/restored by hand rather than via monkeypatch.
+    os.environ["BLOCKS_EXIT_SETTLE_S"] = "0"
+    try:
+        br = _load_blocks_runtime()  # re-imports, so the env var is read fresh
+        robot = _FakeRobot()
+        slept = []
+        br.time.sleep = lambda s: slept.append(s)
+        br.finish(robot)
+        assert slept == []  # 0 disables the delay entirely -- no sleep() call at all
+    finally:
+        os.environ.pop("BLOCKS_EXIT_SETTLE_S", None)
+
+
+def test_finish_settle_delay_defaults_to_a_short_positive_pause():
+    os.environ.pop("BLOCKS_EXIT_SETTLE_S", None)
+    br = _load_blocks_runtime()
+    robot = _FakeRobot()
+
+    slept = []
+    br.time.sleep = lambda s: slept.append(s)
+    br.finish(robot)
+    assert slept == [br._EXIT_SETTLE_S]
+    assert 0 < br._EXIT_SETTLE_S <= 1.0  # short enough not to make Stop feel sluggish
 
 
 def test_finish_is_safe_with_no_robot():

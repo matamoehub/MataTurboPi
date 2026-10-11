@@ -27,7 +27,9 @@ See docs/blockly_blocks_plan.md (4.2) and docs/blockly_build_plan.md (M2).
 """
 from __future__ import annotations
 
+import os
 import sys
+import time
 import traceback
 from contextlib import contextmanager
 from typing import Optional
@@ -40,6 +42,16 @@ _BLOCK_MARKER = f"{_MARKER}BLK "
 _ERROR_MARKER = f"{_MARKER}ERR "
 _READY_MARKER = f"{_MARKER}READY"
 _DONE_MARKER = f"{_MARKER}DONE"
+
+# A block program is a short-lived subprocess that exits right after its
+# last command -- unlike a Jupyter kernel, which stays alive indefinitely.
+# Some backends (a ROS publish that needs a moment for discovery/delivery,
+# a queued hardware write) may not have actually reached the hardware by
+# the time the student's last statement returns. Same idea as arm_lib's
+# ARM_SEQ_SETTLE_S: a short pause before the process (and its ROS context,
+# if any) tears down, so the last command gets a chance to land. 0 disables
+# it entirely.
+_EXIT_SETTLE_S = float(os.environ.get("BLOCKS_EXIT_SETTLE_S", "0.3"))
 
 _last_block_id: Optional[str] = None
 
@@ -85,12 +97,23 @@ def blk(block_id: str) -> None:
 
 def finish(robot=None) -> None:
     """Stop the robot and print the done marker. Always safe to call, even
-    if robot creation failed -- guard() calls this on every exit path."""
+    if robot creation failed -- guard() calls this on every exit path.
+
+    Motors are stopped FIRST, with no delay (safety: never hold up the
+    stop command). The settle delay comes AFTER that, right before the
+    process exits -- giving the student's own last command (e.g. an eye
+    colour, a sound) a moment to actually reach the hardware before the
+    process (and whatever ROS context/I2C handle it holds) tears down.
+    Without this, a block program that only sets eye colour or plays a
+    sound can appear to "do nothing": the process exits so quickly after
+    the call returns that an async write never lands."""
     if robot is not None:
         try:
             robot.stop()
         except Exception:
             pass
+    if _EXIT_SETTLE_S > 0:
+        time.sleep(_EXIT_SETTLE_S)
     print(_DONE_MARKER, flush=True)
 
 
